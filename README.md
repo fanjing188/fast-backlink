@@ -2,78 +2,84 @@
 
 # Fast-Backlink
 
-在本机保存产品资料，填写外链表单，管理批量投稿和待人工任务。
+**把你的网站资料填进产品目录和收录平台的投稿表单，并记清楚哪些已投、哪些还需要处理。**
 
-支持 macOS、Python 3.11+、Chrome / Edge 116+。基础功能不需要 Node、Hermes 或 AI 账号。界面以中文为主。
+适合同时运营多个网站、经常重复填写名称、网址、介绍和图片的开发者。资料录一次，之后在浏览器里选择产品即可复用。
 
-## 快速开始
-
-### 1. 安装并启动
-
-从 [Release](https://github.com/fanjing188/fast-backlink/releases/latest) 下载源码包并解压，或使用 Git：
-
-```sh
-git clone https://github.com/fanjing188/fast-backlink.git
-cd fast-backlink
-sh scripts/install.sh
-export PATH="$HOME/.local/bin:$PATH"
-backlink-kit doctor
-backlink-kit start
-```
-
-使用下载包时，在解压后的项目目录从 `sh scripts/install.sh` 开始执行。
-
-如果系统默认 Python 低于 3.11，用 `PYTHON=/你的/python3.11/路径 sh scripts/install.sh` 指定已安装的解释器。`start` 前台运行，使用期间保留终端；按 Ctrl+C 停止。
-
-### 2. 连接浏览器
-
-1. 打开 `edge://extensions` 或 `chrome://extensions`，开启开发者模式。
-2. 选择“加载解压缩的扩展”，加载 `~/.local/share/backlink-kit/extension`。自定义安装路径看 `doctor` 输出。
-3. 打开扩展选项，保存 `start` 输出的完整本机连接地址，再打开侧栏。
-
-连接地址含访问令牌，只保存在自己的扩展中，不要公开分享。
-
-### 3. 添加产品
-
-另开终端：
-
-```sh
-backlink-kit kits new myproduct
-```
-
-`myproduct` 是自定的产品标识。在 `doctor` 给出的 `config.json` 中填写该产品的真实 `domain`，然后在服务终端按 Ctrl+C，再运行 `backlink-kit start` 载入产品列表。
-
-在扩展“素材库”中补齐名称、网址、介绍和图片，在“身份档案”中保存投稿署名与联系方式。用 `backlink-kit kits check` 检查缺项，补齐后再投。新装的产品库和平台库为空，不附带作者的私有资料。
-
-### 4. 填写第一张表单
-
-打开允许提交的外链平台，在侧栏选择产品，点击“一键填写”。核对内容后自行提交。AI 可选：在“设置”中配置接口、模型和密钥，测试连通并保存，再点击“AI 智能填充”。
-
-项目选择会保存；已有任务仍使用自己的产品绑定。缺失资料、验证码、密码、支付信息与授权确认由你处理。
-
-## 日常使用
-
-| 你要做的事 | 操作 |
+| 你要做的事 | Fast-Backlink 怎么帮你 |
 |---|---|
-| 添加平台 | 打开“外链库”，新增平台或导入 CSV/TXT |
-| 批量投稿 | 选产品、筛选并勾选合格平台，检查预览后启动批量任务 |
-| 稍后处理验证 | 存档待人工，随后从任务列表打开并复原 |
-| Google 登录后继续 | 对当前平台授权登录接续；首次授权、密码和验证码由你完成 |
-| 备份自己的资料 | `backlink-kit assets export --output "$HOME/backlink-assets.zip"` |
+| 给网站提交收录 | 用保存的产品资料填写当前表单 |
+| 管理很多投稿平台 | 在外链库筛选平台、查看不同产品的投递记录 |
+| 集中处理一批平台 | 明确启动批量任务后，填写并提交可确认的投稿表单 |
+| 卡在登录或验证 | 保存待人工任务，稍后打开并复原 |
 
-**批量模式会自动点击最终提交。** 单页“打开并填写”只填表。批量任务遇到登录、验证、付款或缺资料会转人工；结果未知时不会自动重投。平台收稿不等于外链已公开或被收录。
+普通“一键填写”只填表，由你核对后提交。**批量模式会自动提交**；登录、验证码、付款、缺资料或无法确认的表单会转人工。平台收稿与外链已公开分别记录。
 
-## 更新与回滚
+## 一条命令安装
 
-先停止服务，再执行 `backlink-kit update`；回退使用 `backlink-kit rollback`。两种操作后都要在浏览器扩展管理页手动重新加载扩展，并重新启动服务。更新保留个人配置、产品资料和业务记录。
+目前支持 **macOS + Edge / Chrome**。不需要先安装 Git、Node、Hermes 或配置 AI。
 
-从 1.0.0 升级（包括回退到它后再更新）时，用新版下载包中的 `sh scripts/update.sh --prefix 你的安装目录` 完成更新。随后停用旧扩展，从 `doctor` 给出的固定目录加载一次；以后在新扩展上点击“重新加载”即可。
+打开终端，执行：
 
-## 文档
+```sh
+curl -fsSL https://raw.githubusercontent.com/fanjing188/fast-backlink/main/scripts/setup.sh | sh
+```
 
-- [安装、配置与故障排查](docs/INSTALLATION.md)
-- [扩展操作](extension/README.md) · [能力与限制](docs/CAPABILITIES.md)
-- [CLI](docs/fast-backlink-cli.md) · [开发与测试](CONTRIBUTING.md)
-- [变更记录](CHANGELOG.md) · [安全说明](SECURITY.md)
+脚本下载正式 Release、核对摘要并安装到你的用户目录。已有 Python 3.11+ 就直接使用；没有则准备独立运行时。不会修改系统 Python 或 shell 配置。已有安装会自动复用，保留产品资料和记录。
 
-作者：[fanjing188](https://github.com/fanjing188)。本项目采用 [MIT](LICENSE)；第三方代码的必要许可见 [NOTICE](NOTICE)。问题请提交到 [Issues](https://github.com/fanjing188/fast-backlink/issues)，不要附带密钥、连接令牌或私有资料。
+已经下载源码包或克隆仓库，直接在项目目录执行：
+
+```sh
+sh scripts/setup.sh
+```
+
+浏览器会打开扩展管理页。首次加载扩展仍需你手动确认，具体操作见下面第 3 步。
+
+## 第一次使用
+
+### 1. 创建一个产品
+
+把 `myproduct` 和网址换成你的产品：
+
+```sh
+~/.local/bin/backlink-kit kits new myproduct --url https://myproduct.com/
+```
+
+这会登记网址和域名，不需要手动编辑配置。新安装的产品库和平台库为空，不包含作者的私有资料。
+
+### 2. 启动本机服务
+
+```sh
+~/.local/bin/backlink-kit start
+```
+
+保留这个终端窗口，使用期间服务需要运行；按 Ctrl+C 停止。终端会显示一条完整的本机连接地址。
+
+### 3. 连接浏览器扩展
+
+1. 在 `edge://extensions` 或 `chrome://extensions` 开启开发者模式。
+2. 点击“加载解压缩的扩展”，选择安装完成时显示的目录，默认是 `~/.local/share/backlink-kit/extension`。
+3. 打开 Fast-Backlink 的扩展选项，粘贴服务输出的完整地址，点击“保存连接”。
+
+连接地址含本机访问令牌，不要公开分享。自定义安装目录以安装脚本输出为准。
+
+### 4. 填好资料，提交第一张表单
+
+在扩展“素材库”补齐产品名称、介绍和图片，在“身份档案”保存署名与联系方式。然后打开允许投稿的平台，在侧栏选择产品，点击“一键填写”，核对后自行提交。
+
+想批量处理时，再进入“外链库”添加或导入平台，勾选目标并检查预览后启动。结果未知的任务不会自动重投。AI 为可选功能，可在“设置”配置并测试后启用。
+
+## 之后怎么用
+
+- **再次使用：** 运行 `~/.local/bin/backlink-kit start`，然后打开浏览器侧栏。
+- **更新：** 先停止服务，重新运行上面的一键安装命令；在扩展管理页重载 Fast-Backlink，再启动服务。
+- **新增产品：** 使用 `kits new ... --url ...`，然后重启服务，载入新的产品列表。
+- **备份资料：** `~/.local/bin/backlink-kit assets export --output "$HOME/backlink-assets.zip"`。
+
+从 1.0.0 升级时，停用旧扩展，从新的固定目录加载一次，并保存原连接地址。旧扩展的设置与快照可以保留；以后只需重载新版扩展。
+
+## 更多说明
+
+[安装与排错](docs/INSTALLATION.md) · [扩展操作](extension/README.md) · [能力与限制](docs/CAPABILITIES.md) · [CLI](docs/fast-backlink-cli.md) · [开发](CONTRIBUTING.md) · [变更记录](CHANGELOG.md)
+
+作者：[fanjing188](https://github.com/fanjing188)。[MIT 许可](LICENSE)，第三方必要许可见 [NOTICE](NOTICE)。问题请提交到 [Issues](https://github.com/fanjing188/fast-backlink/issues)，不要附带密钥或私有资料。

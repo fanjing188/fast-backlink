@@ -1,6 +1,8 @@
 # CLI 参考
 
-先按 [快速开始](../README.md#快速开始) 安装并连接浏览器。`backlink-kit start` 前台运行，保留终端；下面的命令在另一个终端执行。CLI 输出 JSON，不需要交互提示。
+先按 [第一次使用](../README.md#第一次使用) 安装并连接浏览器。`backlink-kit start` 前台运行，保留终端；下面的命令在另一个终端执行。CLI 输出 JSON，不需要交互提示。
+
+若终端找不到 `backlink-kit`，使用安装脚本给出的完整命令路径，默认是 `~/.local/bin/backlink-kit`。
 
 单页命令只填写；**显式启动的批量任务会自动提交**。Agent 只能在用户明确授权的产品与平台范围内启动批量任务。
 
@@ -10,12 +12,12 @@
 backlink-kit doctor
 backlink-kit fb status
 backlink-kit fb tabs
-backlink-kit kits new myproduct
+backlink-kit kits new myproduct --url https://myproduct.com/
 backlink-kit kits check
 backlink-kit fb queue --site myproduct
 ```
 
-`status` 返回本机服务、扩展连接/版本及活动页的填写计数，不回显连接令牌。`kits new` 创建空产品；补齐配置中的域名后重启服务，再编辑素材和身份。`kits check` 只读检查，缺项时退出码为 1。
+`status` 返回本机服务、扩展连接/版本及活动页的填写计数，不回显连接令牌。`kits new --url` 创建空产品并登记网址、域名；重启服务后编辑素材和身份。`kits check` 只读检查，缺项时退出码为 1。
 
 ## 单页填写
 
@@ -47,6 +49,8 @@ CLI 不加 `--apply` 只返回建议；加上后应用达到阈值的安全字�
 backlink-kit fb batch start --site myproduct --domains first.example,second.example --batch-size 10
 backlink-kit fb batch status
 backlink-kit fb batch status <批次ID>
+backlink-kit fb call batch --args '{"action":"pause","id":"<批次ID>"}'
+backlink-kit fb call batch --args '{"action":"resume","id":"<批次ID>"}'
 backlink-kit fb batch stop <批次ID>
 ```
 

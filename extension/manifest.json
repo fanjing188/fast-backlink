@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Fast-Backlink",
   "description": "保存产品素材与待人工快照，复用外链来源。批量模式会自动提交，单页模式不自动提交；验证码、登录和付款转人工。",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "minimum_chrome_version": "116",
   "permissions": [
     "storage",

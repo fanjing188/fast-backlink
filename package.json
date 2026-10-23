@@ -1,7 +1,7 @@
 {
   "name": "backlink-kit",
-  "version": "1.0.1",
-  "description": "Local-first backlink form assistant: reusable product assets, verification archives and a browser/agent CLI.",
+  "version": "1.0.2",
+  "description": "Fill website directory submission forms with reusable product details and track submissions locally.",
   "scripts": {
     "test": "node --test extension/tests/*.test.cjs",
     "test:py": "BK_PROTECT_REAL=1 python3 -m unittest",
