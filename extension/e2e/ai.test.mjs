@@ -19,7 +19,11 @@ after(async () => {
 
 test('AI 兜底：确定性同义词覆盖不到的字段按建议填入，敏感字段不进 prompt', async () => {
   const {page} = await openFixture(context, 'ai-fallback.html');
-  await page.waitForFunction(() => document.querySelector('#site')?.value, null, {timeout: 15000});
+  // 逐字段回填是异步的，首个字段有值并不代表整轮建议已处理。
+  await page.waitForFunction(() => {
+    const ai = JSON.parse(document.documentElement.dataset.bkStatus || '{}').ai;
+    return ai?.suggestions?.length && ai.suggestions.every(item => item.applied || item.reason);
+  }, null, {timeout: 15000});
   assert.equal(await value(page, '#name'), EXPECTED.name);
   assert.equal(await value(page, '#site'), EXPECTED.url);
   assert.equal(await value(page, '#pitch'), EXPECTED.tagline60);
