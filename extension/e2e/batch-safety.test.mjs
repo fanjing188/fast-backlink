@@ -28,9 +28,31 @@ test('必填contenteditable为空、未确认映射和空自定义选择都转�
   } finally {await page.close();}
 });
 
+test('首页搜索、订阅和导航Submit不获得投稿资格，真实产品表单的按钮仍可提交', async () => {
+  const page = await pageFor('<header><input placeholder="Search products, tools or tags"><button id="navigation">Submit</button></header>' +
+    '<form id="newsletter"><label>Email address<input type="email" value="maker@example.test"></label><button>Subscribe</button></form>');
+  try {
+    const rejected = await page.evaluate(() => {
+      const entries = BKFields.scan();
+      return BKBatchPage.inspect(document, entries, {decisions: new Map(entries.map(e => [e.field.index, {key: e.element.type === 'email' ? 'email' : 'tags'}]))});
+    });
+    assert.equal(rejected.canSubmit, false);
+    assert.equal(rejected.result, 'manual');
+    await page.locator('#newsletter').evaluate(form => form.insertAdjacentHTML('beforebegin',
+      '<form id="listing"><label>Website URL<input type="url" value="https://product.example"></label><button id="listing-submit">Submit</button></form>'));
+    const accepted = await page.evaluate(() => {
+      const entries = BKFields.scan();
+      const options = {decisions: new Map(entries.map(e => [e.field.index, {key: e.element.type === 'url' ? 'url' : e.element.type === 'email' ? 'email' : 'tags'}]))};
+      return {state: BKBatchPage.inspect(document, entries, options), target: BKBatchPage.target(document, entries, options)?.id};
+    });
+    assert.equal(accepted.state.canSubmit, true);
+    assert.equal(accepted.target, 'listing-submit');
+  } finally {await page.close();}
+});
+
 for (const mutation of ['payment', 'captcha', 'submitted', 'replace-form', 'change-product', 'same-binding-refresh']) {
   test(`实际提交handler：等待授权期间${mutation}按真实任务身份决定是否点击`, async () => {
-    const page = await pageFor('<form><label>Product name<input value="Synthetic" required></label><button type="button">Submit</button></form>');
+    const page = await pageFor('<form><label>Product name<input value="Synthetic" required></label><label>Website URL<input type="url" value="https://product.example" required></label><button type="button">Submit</button></form>');
     try {
       const source = await readFile(script('content.js'), 'utf8');
       const begin = source.indexOf("'page:batch-submit': ") + "'page:batch-submit': ".length;
@@ -39,7 +61,10 @@ for (const mutation of ['payment', 'captcha', 'submitted', 'replace-form', 'chan
       await page.evaluate(handler => {
         window.F = BKFields;
         window.state = {session: {site: 'fixture', source_domain: 'fixture.example', record: {id: 'a'.repeat(32)}}, entries: [], decisions: new Map()};
-        window.scan = () => {state.entries = BKFields.scan();};
+        window.scan = () => {
+          state.entries = BKFields.scan();
+          state.decisions = new Map(state.entries.map(entry => [entry.field.index, {key: entry.element.type === 'url' ? 'url' : 'name'}]));
+        };
         window.loginPage = () => false;
         window.contentAllowed = () => true;
         window.clicks = 0;

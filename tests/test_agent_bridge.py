@@ -2,11 +2,27 @@
 import threading
 import time
 import unittest
+import contextlib
+import io
+from types import SimpleNamespace
+from unittest.mock import patch
 
 from backlink_kit.agent_bridge import AgentBridge
+from backlink_kit import fbcli
 
 
 class AgentBridgeTests(unittest.TestCase):
+    def test_generic_cli_can_pause_registered_batch_without_opening_other_actions(self):
+        args = SimpleNamespace(fb_action='call', call_action='batch', args='{"action":"pause","id":"fixture"}', wait=20)
+        with patch.object(fbcli, 'Service') as service, patch.object(fbcli, '_agent', return_value=({'state': 'paused'}, {'id': 'command'})) as agent:
+            with contextlib.redirect_stdout(io.StringIO()) as output:
+                self.assertEqual(fbcli.run(args, {}), 0)
+            agent.assert_called_once_with(service.return_value, 'batch', {'action': 'pause', 'id': 'fixture'}, 20)
+            self.assertIn('"state":"paused"', output.getvalue())
+            args.call_action = 'shell'
+            with self.assertRaises(fbcli.CLIError):
+                fbcli.run(args, {})
+
     def test_submit_next_complete_unblocks_cli(self):
         bridge = AgentBridge()
         result = {}

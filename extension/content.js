@@ -1075,10 +1075,9 @@
           decisions: state.decisions, byHuman: state.byHuman});
         const check = inspect();
         if (!check.canSubmit) throw Error(check.reason || '表单未满足批量提交条件');
-        const buttons = [...document.querySelectorAll('button,input[type=submit],[role=button]')].filter(node =>
-          F.visible(node) && !node.disabled && /^(?:submit(?:\s+(?:listing|tool|product|application))?|send(?:\s+(?:application|listing))?|publish|提交|发布)$/i.test((node.value || node.textContent || '').trim()));
-        if (buttons.length !== 1) throw Error('提交按钮不唯一，转人工核对');
-        const target = buttons[0], label = target.value || target.textContent;
+        const target = BKBatchPage.target(document, state.entries, {decisions: state.decisions});
+        if (!target) throw Error('无法确认产品投稿表单和提交按钮归属，转人工核对');
+        const label = target.value || target.textContent;
         const documentRoot = document.documentElement, buttonRoot = target.getRootNode(), form = target.form;
         const buttonIdentity = () => JSON.stringify([target.type, target.getAttribute('formaction'), target.getAttribute('formmethod'),
           form?.action, form?.method, target.getAttribute('aria-disabled')]);
@@ -1094,7 +1093,8 @@
             (target.value || target.textContent) !== label ||
             fields.length !== state.entries.length || fields.some((old, i) => old.element !== state.entries[i].element ||
               old.form !== state.entries[i].element.form || old.semantic !== JSON.stringify(state.entries[i].field) ||
-              old.value !== F.read(state.entries[i].element, state.entries[i].field)) || !inspect().canSubmit) {
+              old.value !== F.read(state.entries[i].element, state.entries[i].field)) || !inspect().canSubmit ||
+            BKBatchPage.target(document, state.entries, {decisions: state.decisions}) !== target) {
           throw Error('等待授权期间表单或任务改变，停止提交，请人工核对');
         }
         state.submitted = true;

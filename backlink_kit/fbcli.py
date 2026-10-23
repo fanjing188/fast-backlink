@@ -32,7 +32,7 @@ DIRECT_ACTIONS = {
 }
 PAGE_ACTIONS = {
     'status', 'tabs', 'open', 'fill', 'ai', 'restore', 'remember', 'snapshot', 'steps', 'state',
-    'activate', 'done', 'skip',
+    'activate', 'done', 'skip', 'batch',
 }
 
 

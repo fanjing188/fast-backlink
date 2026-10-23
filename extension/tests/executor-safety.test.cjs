@@ -189,7 +189,7 @@ function submitFixture() {
   const state = {session: {site: 'probekits', source_domain: 'source.example', record: {id: ID}, submit_url: URL}, entries: [entry], decisions: new Map()};
   const sandbox = {state, location: {href: URL}, document: {documentElement: {}, querySelectorAll: () => [target]},
     F: {visible: () => true, read: () => 'Synthetic'}, scan: () => {}, contentAllowed: () => true, loginPage: () => false,
-    BKBatchPage: {inspect: () => ({canSubmit: true})}, send: () => new Promise(resolve => {permit = () => resolve({authorized: true, id: ID});})};
+    BKBatchPage: {inspect: () => ({canSubmit: true}), target: () => target}, send: () => new Promise(resolve => {permit = () => resolve({authorized: true, id: ID});})};
   const handler = vm.runInNewContext('(' + source.slice(start, end).trim().replace(/,$/, '') + ')', sandbox);
   return {state, target, form, sandbox, run: handler, permit: () => permit(), clicks: () => clicks};
 }

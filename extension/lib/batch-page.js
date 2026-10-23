@@ -1,5 +1,18 @@
 // 只判断当前可见反馈；提交动作的授权与一次性记录由后台负责。
 (function (root) {
+  const visible = node => !!node?.getClientRects().length && getComputedStyle(node).visibility !== 'hidden';
+  const activeFields = entries => entries.filter(entry => visible(entry.element) && !entry.field.honeypot && !entry.field.disabled);
+
+  function target(document, entries, options = {}) {
+    const products = activeFields(entries).filter(entry => !entry.field.sensitive && !entry.field.captcha &&
+      ['url', 'domain'].includes(options.decisions?.get(entry.field.index)?.key) && root.BKFields.read(entry.element, entry.field));
+    const buttons = [...document.querySelectorAll('button,input[type="submit"]')].filter(node =>
+      visible(node) && !node.disabled && node.form &&
+      /^(?:submit(?:\s+(?:listing|tool|product|application))?|send(?:\s+(?:application|listing))?|publish|提交|发布)$/i.test((node.value || node.textContent || '').trim()) &&
+      products.some(entry => entry.element.form === node.form || node.form.contains(entry.element)));
+    return buttons.length === 1 ? buttons[0] : null;
+  }
+
   function classify({url = '', attempted = false, login = false, captcha = false, payment = false,
     email = false, missing = [], error = '', success = '', hasForm = true, timedOut = false, baseline}) {
     if (login) return {result: 'manual', reason: '登录'};
@@ -21,10 +34,9 @@
   }
 
   function inspect(document, entries, options = {}) {
-    const visible = node => !!node?.getClientRects().length && getComputedStyle(node).visibility !== 'hidden';
     const nodes = selector => [...document.querySelectorAll(selector)].filter(visible);
     const feedback = selector => nodes(selector).map(node => node.textContent || '').join(' ').slice(0, 1500);
-    const fields = entries.filter(entry => visible(entry.element) && !entry.field.honeypot && !entry.field.disabled);
+    const fields = activeFields(entries);
     const missing = fields.filter(entry => entry.field.required && !entry.field.captcha &&
       (entry.field.sensitive || entry.element.validity?.valid === false || !root.BKFields.read(entry.element, entry.field) ||
        entry.needsConfirmation || !options.byHuman?.has(entry.element) &&
@@ -35,13 +47,13 @@
     const error = feedback('[role="alert"],.error,.errors,.invalid-feedback,[aria-invalid="true"]');
     const success = feedback('[role="status"],.success,.alert-success,h1,h2,main p');
     const hasForm = fields.some(e => !e.field.sensitive && !e.field.captcha);
-    const result = classify({...options, captcha, payment, email, missing, error, success, hasForm});
-    const buttons = nodes('button,input[type="submit"],[role="button"]').filter(node => !node.disabled &&
-      /^(?:submit(?:\s+(?:listing|tool|product|application))?|send(?:\s+(?:application|listing))?|publish|提交|发布)$/i.test((node.value || node.textContent || '').trim()));
+    let result = classify({...options, captcha, payment, email, missing, error, success, hasForm});
+    const button = target(document, fields, options);
+    if (!result && !options.attempted && !button) result = {result: 'manual', reason: '无法确认产品投稿表单和提交按钮归属'};
     return {...(result || {}), hasForm, feedback: {url: options.url || '', success},
-      canSubmit: !result && !options.attempted && buttons.length === 1};
+      canSubmit: !result && !options.attempted && !!button};
   }
 
-  root.BKBatchPage = {classify, inspect};
+  root.BKBatchPage = {classify, inspect, target};
   if (typeof module !== 'undefined') module.exports = root.BKBatchPage;
 })(globalThis);
