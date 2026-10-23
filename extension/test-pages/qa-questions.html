@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Directory questions</title>
+<style>body{font:15px system-ui;margin:24px;max-width:720px}label{display:block;margin:10px 0 2px}
+input,textarea,select{font:inherit;padding:5px;width:100%;max-width:520px}
+.row{display:flex;gap:8px} .hint{color:#6b7280;font-size:12px}
+.hp{position:absolute;left:-9999px} .chips .token{display:inline-block;background:#eef;border-radius:999px;padding:1px 8px;margin:2px}
+[role=listbox]{border:1px solid #ccc;max-height:160px;overflow:auto;background:#fff;position:relative;z-index:5}
+[role=option]{padding:4px 8px;cursor:pointer} [role=option]:hover{background:#eef}
+.ql-editor,.ProseMirror,.ck-editor__editable{border:1px solid #ccc;min-height:70px;padding:6px;background:#fff}
+.choices__list--dropdown{border:1px solid #ccc;background:#fff} .choices__item--choice{padding:4px 8px;cursor:pointer}
+.select2-container{display:inline-block} .select2-selection{border:1px solid #ccc;padding:4px 8px;cursor:pointer}
+.select2-results__option{padding:4px 8px;cursor:pointer}</style>
+</head><body>
+<h1>Directory questions</h1>
+<p class="hint">问答库只答固定项；MRR、同意条款、订阅都不填。</p>
+
+<label for="hear">How did you hear about us?</label><input id="hear" name="referral_source">
+<label for="owner">Are you the owner of this product?</label><select id="owner"><option value="">-</option><option>Yes</option><option>No</option></select>
+<label for="team">Team size</label><select id="team"><option value="">-</option><option>1</option><option>2-10</option><option>11+</option></select>
+<label for="funding">Funding</label><select id="funding"><option value="">-</option><option>Bootstrapped</option><option>VC backed</option></select>
+<label for="mrr">Current MRR</label><input id="mrr">
+<label for="free">Is it free to use?</label><select id="free"><option value="">-</option><option>Yes</option><option>No</option></select>
+<label for="agree"><input id="agree" type="checkbox" style="width:auto"> I agree to the terms and privacy policy</label>
+<label for="news"><input id="news" type="checkbox" style="width:auto"> Subscribe to the newsletter</label>
+<label for="message">Additional information</label><textarea id="message"></textarea><script type="application/json" id="fixture-expect">{"fields":{"#hear":"how_did_you_hear","#owner":"owner","#team":"team_size","#funding":"funding","#free":"is_free","#message":"message"},"mustStayEmpty":["#mrr"],"checkboxNever":["#agree","#news"]}</script>
+</body></html>

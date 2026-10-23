@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fast-Backlink</title>
+<link rel="stylesheet" href="vendor/fbl/brand.css">
+<link rel="stylesheet" href="ui/app.css">
+<style>
+  html, body {height: 100%; overflow: hidden}
+  body.app {display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto auto auto auto minmax(0, 1fr) auto; height: 100vh}
+  main {overflow-y: auto; min-height: 0; min-width: 0}
+  .task {min-width: 0; max-width: 100%}
+  .task strong {min-width: 0; overflow-wrap: anywhere}
+  .actionbar {position: static}
+  .appbar {padding: 10px; gap: 6px; flex-wrap: nowrap}
+  .appbar select {flex: 0 1 128px; min-height: var(--control); font-size: var(--fs-2)}
+  .appbar .mark {width: 26px; height: 26px}
+  .headline {display: flex; flex-direction: column; min-width: 0; line-height: 1.25}
+  .headline b {font-size: var(--fs-3); letter-spacing: .2px; white-space: nowrap}
+  .appbar .conn span {display: none}
+  #status {font-size: var(--fs-1); color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap}
+  .tabs {position: static}
+  main {padding: 10px 12px 12px}
+  .panel-head {display: flex; align-items: center; gap: 6px; margin-bottom: 8px; flex-wrap: wrap}
+  .panel-head h2 {font-size: 12px; color: var(--ink-2); font-weight: 650; letter-spacing: .2px; flex: 1}
+  .seg {display: inline-flex; background: var(--line-2); border-radius: 8px; padding: 2px; gap: 2px}
+  .seg button {border: 0; background: none; min-height: var(--control-sm); padding: 4px 8px; font-size: var(--fs-2); border-radius: 6px; color: var(--ink-2)}
+  .seg button[aria-pressed=true] {background: var(--paper); color: var(--ink); box-shadow: 0 1px 2px rgba(20,30,50,.12)}
+  .fieldrow .acts button {min-width: var(--control-sm); min-height: var(--control-sm); padding: 4px 6px}
+  footer.actionbar {display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding: 12px}
+  .actionbar button, .actionbar .primary {min-width: 0; width: 100%; justify-content: center}
+  .panel-head:has(> .search) {display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 8px}
+  .panel-head > .search {grid-column: 1 / -1}
+  .panel-head > .seg {justify-self: start}
+  .statline {border-top: 1px solid var(--line-2); grid-template-columns: repeat(4, minmax(0, 1fr))}
+  .stat {padding: 7px 10px}
+  .stat .v {font-size: 19px}
+  .progress {height: 3px}
+  .keychip {font-family: var(--mono); font-size: 10px; color: var(--brand); background: var(--brand-soft); border-radius: 4px; padding: 0 4px}
+  .value-preview {border-top: 1px dashed var(--line-2); margin-top: 4px; padding-top: 4px}
+  .frame-list {margin-top: 8px}
+  .frame-list .row {font-size: 11px; color: var(--ink-3)}
+  .media .thumb {aspect-ratio: 1 / 1}
+  .asset-actions {display: grid; grid-template-columns: 1fr 1fr; gap: 4px}
+  .snapshot .when {font-family: var(--mono); font-size: 11px}
+  .snapshot .acts {display: flex; gap: 4px}
+  .diff-table td {max-width: 120px; word-break: break-word}
+  .shortcuts {display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; font-size: 11px; color: var(--ink-2)}
+  .shortcuts dt {font-family: var(--mono)}
+  .task .url {font-family: var(--mono); font-size: 10px; color: var(--ink-3)}
+  .loading {display: flex; flex-direction: column; gap: 8px}
+  .settings-group {display: flex; flex-direction: column; gap: 0; border: 1px solid var(--line); border-radius: var(--r); background: var(--paper); padding: 0 12px; margin-bottom: 10px}
+  .settings-group h3 {font-size: 11px; color: var(--ink-3); letter-spacing: .4px; text-transform: uppercase; padding: 10px 0 2px}
+  .inline-num {display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 9px 0; border-bottom: 1px solid var(--line-2); font-size: 12px}
+  .inline-num:last-child {border-bottom: 0}
+  .inline-num input {width: 72px; min-height: var(--control); padding: 4px 6px; font-size: var(--fs-2)}
+  .inline-num small {display: block; color: var(--ink-3); font-size: 11px}
+  @media (prefers-color-scheme: dark) { .appbar .mark {box-shadow: none} }
+  @media (max-width: 360px) {
+    .appbar select {flex-basis: 96px; min-width: 72px}
+    .appbar .conn span {display: none}
+  }
+</style>
+</head>
+<body class="app">
+<header class="appbar">
+  <img class="mark" src="icons/icon-48.png" alt="">
+  <div class="headline grow">
+    <b>Fast-Backlink</b>
+    <span id="status" data-role="status" aria-live="polite">读取中…</span>
+  </div>
+  <select id="site" title="目标项目" aria-label="目标项目"></select>
+  <span class="conn" id="conn" title="本机服务"><i></i><span>本机</span></span>
+  <button id="settings" class="icon ghost" title="设置" aria-label="设置" data-icon="gear"></button>
+</header>
+<nav class="workspace-nav" aria-label="工作区">
+  <a id="open-library" class="btn" href="library.html" target="_blank" rel="noopener"><span data-icon="list"></span>外链库</a>
+  <a class="btn" href="options.html" target="_blank" rel="noopener"><span data-icon="image"></span>产品资料</a>
+</nav>
+
+<div class="statline" id="stats" aria-hidden="true">
+  <div class="stat ok"><span class="k">已填</span><span class="v" data-stat="filled">0</span></div>
+  <div class="stat warn"><span class="k">待确认</span><span class="v" data-stat="confirm">0</span></div>
+  <div class="stat idle"><span class="k">未匹配</span><span class="v" data-stat="unmatched">0</span></div>
+  <div class="stat special"><span class="k">验证码</span><span class="v" data-stat="captcha">0</span></div>
+</div>
+<div class="progress" aria-hidden="true"><i id="progress" style="width:0%"></i></div>
+
+<nav class="tabs bk-tabs" role="tablist" aria-label="面板页签">
+  <button role="tab" data-tab="form" aria-selected="true"><span data-icon="form"></span>表单<span class="count" data-count="form" hidden></span></button>
+  <button role="tab" data-tab="assets"><span data-icon="image"></span>素材</button>
+  <button role="tab" data-tab="snapshots"><span data-icon="clock"></span>快照<span class="count" data-count="snapshots" hidden></span></button>
+  <button role="tab" data-tab="logs"><span data-icon="log"></span>日志</button>
+  <button role="tab" data-tab="tasks"><span data-icon="list"></span>任务<span class="count" data-count="tasks" hidden></span></button>
+  <button role="tab" data-tab="settings"><span data-icon="sliders"></span>设置</button>
+</nav>
+
+<main>
+  <section data-panel="form" role="tabpanel"></section>
+  <section data-panel="assets" role="tabpanel" hidden></section>
+  <section data-panel="snapshots" role="tabpanel" hidden></section>
+  <section data-panel="logs" role="tabpanel" hidden></section>
+  <section data-panel="tasks" role="tabpanel" hidden></section>
+  <section data-panel="settings" role="tabpanel" hidden></section>
+</main>
+
+<footer class="actionbar">
+  <button class="primary" data-command="page:fill"><span data-icon="bolt"></span>一键填写</button>
+  <button data-command="page:restore" title="复原最近快照"><span data-icon="refresh"></span>复原</button>
+  <button data-command="page:remember" title="记住这个表单"><span data-icon="key"></span>记住</button>
+  <button data-command="page:done" title="我已提交"><span data-icon="check"></span>已提交</button>
+</footer>
+
+<div class="toasts" id="toasts" aria-live="polite"></div>
+<dialog class="sheet" id="confirm">
+  <div class="pad stack tight">
+    <h2 id="confirm-title">确认</h2>
+    <p class="muted" id="confirm-body"></p>
+  </div>
+  <div class="foot">
+    <button value="cancel" class="subtle">取消</button>
+    <button value="ok" class="primary">确定</button>
+  </div>
+</dialog>
+<script src="logic.js"></script>
+<script src="ui/icons.js"></script>
+<script src="panel.js"></script>
+</body>
+</html>

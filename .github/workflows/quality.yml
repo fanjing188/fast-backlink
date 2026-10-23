@@ -1,0 +1,37 @@
+name: Quality
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: macos-latest
+    timeout-minutes: 25
+    env:
+      BK_PROTECT_REAL: "1"
+      BK_TEST_TMPDIR: ${{ runner.temp }}/backlink-kit-tests
+      TMPDIR: ${{ runner.temp }}/backlink-kit-tests
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Prepare private temporary directory
+        run: mkdir -p "$BK_TEST_TMPDIR"
+      - run: npm ci --ignore-scripts
+      - run: npx playwright install chromium
+      - name: E2E media dependency
+        run: command -v ffmpeg || brew install ffmpeg
+      - run: python3 -m unittest
+      - run: node --test extension/tests/*.test.cjs
+      - run: node --input-type=module --check < extension/background.js
+      - run: node --test --test-concurrency=1 extension/e2e/*.test.mjs
+      - run: npm run vendor:check
+      - name: Validate private source candidate (not a publication)
+        run: python3 tools/package_public.py --local-candidate --output "$RUNNER_TEMP/source-candidate.zip"

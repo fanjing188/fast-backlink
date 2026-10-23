@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fast-Backlink 外链库</title>
+<link rel="stylesheet" href="vendor/fbl/brand.css">
+<link rel="stylesheet" href="ui/app.css">
+<!-- THESIS: 平台准入与当前产品复用分开呈现，不把来源数量当成功外链。
+     OWN-WORLD: 沿用蓝白品牌、系统字体与共享控件；无新增视觉体系。
+     STORY: 选产品 → 筛选平台 → 核对历史 → 打开查看或填写，提交留给用户。
+     FIRST VIEWPORT: 窄屏先标题和产品，再搜索、两列筛选、结果；桌面扩展行宽。
+     FORM: 已明确规格的 Operate 列表，移动单列、桌面行内动作，不做概念抽签。 -->
+<style>
+  .library {max-width: 1120px; margin: auto; padding: var(--sp-4); display: flex; flex-direction: column; gap: var(--sp-4)}
+  .appbar {position: static; flex-wrap: wrap}
+  .appbar .mark {width: 28px; height: 28px; flex: none}
+  .appbar h1 {font-size: var(--fs-4)}
+  .page-actions {display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-2); width: 100%}
+  .page-actions button {justify-content: center}
+  .filters {display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-3)}
+  .filters .product, .filters .query {grid-column: 1 / -1}
+  .filters .search {min-width: 0}
+  .field, .field > *, .filters > *, .platform > * {min-width: 0}
+  .library .field > label {font-size: var(--fs-2)}
+  .library input, .library textarea, .library select {font-size: var(--fs-3)}
+  .results-head {display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2)}
+  .results-head h2 {font-size: var(--fs-4)}
+  .platform-list {border: 1px solid var(--line); border-radius: var(--r); background: var(--paper); overflow: hidden}
+  .platform {padding: var(--sp-4); border-bottom: 1px solid var(--line-2); display: grid; gap: var(--sp-3); overflow-wrap: anywhere}
+  .platform:last-child {border-bottom: 0}
+  .platform-title {display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2)}
+  .platform h3 {font-size: var(--fs-4); overflow-wrap: anywhere}
+  .platform .pill {font-size: var(--fs-1); height: auto; min-height: 22px; white-space: normal}
+  .platform-meta {display: flex; flex-wrap: wrap; gap: var(--sp-2); color: var(--ink-2); font-size: var(--fs-2)}
+  .platform-actions {display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-2)}
+  .platform-actions button {justify-content: center; white-space: normal}
+  .platform-actions button:last-child {grid-column: 1 / -1}
+  .platform details, .platform .reason {font-size: var(--fs-2)}
+  .platform summary {cursor: pointer; color: var(--ink-2); padding-block: var(--sp-2)}
+  .platform ul {margin: var(--sp-2) 0 0; padding-inline-start: var(--sp-4)}
+  .detail-body {display: grid; gap: var(--sp-2); padding-top: var(--sp-2)}
+  #notice {overflow-wrap: anywhere}
+  #action-status:empty {display: none}
+  #results {min-height: 120px}
+  #summary {font-size: var(--fs-2); color: var(--ink-2)}
+  .editor {padding: var(--sp-4); border: 1px solid var(--line); background: var(--paper); border-radius: var(--r)}
+  .editor-grid {display: grid; gap: var(--sp-3)}
+  .editor fieldset {min-width: 0; margin: 0; padding: var(--sp-3); border: 1px solid var(--line); border-radius: var(--rc)}
+  .fit-options {display: flex; flex-wrap: wrap; gap: var(--sp-2)}
+  .fit-option {display: flex; align-items: center; gap: var(--sp-2); padding: var(--sp-2); overflow-wrap: anywhere}
+  .editor .form-actions {display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-2)}
+  input[type=date] {width: 100%; min-width: 0; min-height: var(--control); border: 1px solid var(--line); border-radius: var(--rc); padding: 7px 10px; background: var(--paper); color: var(--ink)}
+  @media (min-width: 720px) {
+    .appbar {flex-wrap: nowrap}
+    .page-actions {width: auto}
+    .filters {grid-template-columns: minmax(180px, 1fr) minmax(220px, 2fr) 1fr 1fr}
+    .filters .product, .filters .query {grid-column: auto}
+    .platform {grid-template-columns: minmax(0, 1fr) 280px}
+    .platform-actions {grid-column: 2; grid-row: 1 / 5; align-self: center}
+    .platform details {grid-column: 1}
+    .editor-grid {grid-template-columns: 1fr 1fr}
+    .editor-grid .wide {grid-column: 1 / -1}
+  }
+  @media (pointer: coarse) {
+    .library button, .library select, .library input:not([type=checkbox]), .library summary, .appbar button {min-height: 44px}
+    .library input:not([type=checkbox]), .library select, .library textarea {font-size: var(--fs-4)}
+    .fit-option {min-height: 44px}
+  }
+</style>
+</head>
+<body>
+<header class="appbar">
+  <img class="mark" src="icons/icon-48.png" alt="">
+  <div class="grow"><h1>Fast-Backlink 外链库</h1><p class="muted">保留平台经验，换产品前重新核对。</p></div>
+  <div class="page-actions">
+    <button id="add" type="button"><span data-icon="plus"></span>新增平台</button>
+    <button id="export" type="button" disabled><span data-icon="download"></span>导出当前清单</button>
+  </div>
+</header>
+<main class="library">
+  <section class="filters" aria-label="筛选外链平台">
+    <div class="field product"><label for="site">目标产品</label><select id="site"><option value="">未选择产品</option></select></div>
+    <div class="field query"><label for="search">搜索平台</label><div class="search"><span data-icon="search"></span><input id="search" type="search" placeholder="域名或提交地址" autocomplete="off"></div></div>
+    <div class="field"><label for="status">状态</label><select id="status"><option value="all">全部状态</option><option value="confirmed">已确认可投的平台</option><option value="ready">当前产品可复用</option><option value="needs_review">需要核对</option><option value="already_submitted">当前产品已投 / 结果待核</option><option value="blocked">不可复用</option></select></div>
+    <div class="field"><label for="scenario">类型</label><select id="scenario"><option value="">全部类型</option><option value="directory">目录</option><option value="launch">Launch</option><option value="roundup">Roundup</option><option value="resource">资源页</option><option value="community">社区（需批准）</option><option value="comment">评论（需批准）</option><option value="producthunt">Product Hunt（需批准）</option><option value="github">GitHub（禁止自动投）</option><option value="paid">付费渠道（禁止自动投）</option></select></div>
+  </section>
+  <p id="product-hint" class="muted"></p>
+  <div id="notice" class="banner err" role="alert" hidden></div>
+  <p id="action-status" class="muted" role="status" aria-live="polite"></p>
+  <section id="editor" class="editor stack" aria-labelledby="editor-heading" hidden>
+    <h2 id="editor-heading">新增平台</h2>
+    <p class="muted">只记录你核实过的信息。标记“可投”是平台准入结论，不代表新产品自动适配。</p>
+    <form id="record-form" class="stack">
+      <fieldset id="record-fields" class="editor-grid">
+        <legend class="sr-only">平台资料</legend>
+        <div class="field"><label for="record-domain">平台域名（必填）</label><input id="record-domain" type="text" placeholder="directory.example" required maxlength="253" autocomplete="off"></div>
+        <div class="field"><label for="record-url">提交地址（必填）</label><input id="record-url" type="url" placeholder="https://directory.example/submit" required autocomplete="off"></div>
+        <div class="field"><label for="record-scenario">类型</label><select id="record-scenario"><option value="">待核实</option><option value="directory">目录</option><option value="launch">Launch</option><option value="roundup">Roundup</option><option value="resource">资源页</option><option value="community">社区（需批准）</option><option value="comment">评论（需批准）</option><option value="producthunt">Product Hunt（需批准）</option><option value="github">GitHub（禁止自动投）</option><option value="paid">付费渠道（禁止自动投）</option></select></div>
+        <div class="field"><label for="record-admission">平台准入</label><select id="record-admission"><option value="待核实">待核实</option><option value="可投">已人工确认可投</option><option value="不做">不可投 / 不做</option></select></div>
+        <div class="field"><label for="record-dr">Ahrefs DR</label><input id="record-dr" type="number" min="0" max="100" step="0.1" placeholder="未核实时留空" inputmode="decimal"></div>
+        <div class="field"><label for="record-dr-date">DR 核验日期</label><input id="record-dr-date" type="date"></div>
+        <div class="field"><label for="record-fee">费用</label><select id="record-fee"><option value="">待核实</option><option value="free">免费</option><option value="paid">付费</option></select></div>
+        <div class="field"><label for="record-backlink">回链要求</label><select id="record-backlink"><option value="">待核实</option><option value="false">不要求回链</option><option value="true">要求回链</option></select></div>
+        <fieldset class="wide"><legend>明确适配的产品</legend><div id="fit-options" class="fit-options"></div><p class="muted">不默认勾选当前产品。历史使用过不代表仍然适配；未勾选即未明确确认。</p></fieldset>
+        <div class="field wide"><label for="record-note">核实依据与备注</label><textarea id="record-note" rows="3" maxlength="4000" placeholder="例如准入条件、规则页面、需要人工处理的步骤"></textarea></div>
+      </fieldset>
+      <p id="form-status" role="status" aria-live="polite" class="muted"></p>
+      <div class="form-actions"><button id="cancel-edit" type="button">收起表单</button><button id="save" type="submit" class="primary">保存平台</button></div>
+    </form>
+  </section>
+  <section aria-labelledby="results-heading" class="stack">
+    <div class="results-head"><h2 id="results-heading">平台清单</h2><button id="reload" type="button"><span data-icon="refresh"></span>刷新</button></div>
+    <p id="summary" aria-live="polite">读取中…</p>
+    <div id="results" aria-busy="true"></div>
+  </section>
+  <p class="muted">“平台已确认可投”不等于适合当前产品。填写不代表受理或外链上线；最终提交、验证码与授权由你手动完成。</p>
+</main>
+<script src="ui/icons.js"></script>
+<script src="library.js"></script>
+</body>
+</html>

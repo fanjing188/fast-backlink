@@ -1,0 +1,405 @@
+{
+  "version": 1,
+  "note": "扩展的加权同义词规则。labels.json 仍供 Python 侧使用；本文件是匹配分层第 5 层的规则，含多语言和排他词。",
+  "keys": {
+    "name": {
+      "synonyms": ["product name", "tool name", "app name", "site name", "startup name", "project name", "name of your product", "name of the tool", "your product", "产品名", "产品名称", "名称", "站点名称", "title of your product"],
+      "patterns": ["^(your |the )?(product|tool|app|site|startup|company|project|business) ?(name|title)$"],
+      "weight": 1.0
+    },
+    "url": {
+      "synonyms": ["website url", "product url", "site url", "web site url", "homepage url", "home page", "product website", "website address", "link to your product", "official website", "网址", "官网", "产品链接", "website"],
+      "patterns": ["^(your |the )?(website|web site|homepage|site|product) ?(url|link|address)?$", "domain name or url"],
+      "exclude": ["twitter", "x.com", "facebook", "linkedin", "instagram", "youtube", "tiktok", "github", "pinterest", "reddit", "discord", "logo", "image", "avatar", "photo", "screenshot", "icon", "video", "demo", "blog", "docs", "documentation", "changelog", "privacy", "terms", "rss", "sitemap", "pricing", "referral", "personal", "portfolio", "resume", "social"],
+      "weight": 1.0
+    },
+    "tagline": {
+      "synonyms": ["tagline", "one line", "one-liner", "one line description", "short tagline", "slogan", "brief description", "elevator pitch", "one sentence", "一句话介绍", "一句话", "简短介绍", "标语", "短标语", "简要介绍"],
+      "patterns": ["^one[- ]?line[r]?($| )", "short (pitch|intro|tagline)"],
+      "weight": 1.0
+    },
+    "short_description": {
+      "synonyms": ["short description", "summary", "short summary", "brief description", "short bio", "mini description", "teaser", "短描述", "简介", "简短描述", "概述"],
+      "patterns": ["short(est)? (description|summary)", "description under \\d+", "\\d+ ?character (description|summary)"],
+      "weight": 1.0
+    },
+    "description": {
+      "synonyms": ["long description", "full description", "detailed description", "description", "about the product", "about your product", "product details", "tell us about", "what does it do", "长描述", "详细描述", "描述", "产品介绍", "介绍"],
+      "patterns": ["^(description|about|details|overview)$", "tell us (more )?about"],
+      "exclude": ["short description", "short summary", "meta description", "seo description", "tagline", "one line", "category description", "why", "how did you", "reason", "feedback", "comment", "message", "story"],
+      "weight": 1.0
+    },
+    "features": {
+      "synonyms": ["features", "key features", "main features", "product features", "功能", "功能特点", "主要功能"],
+      "patterns": ["^features?$", "what (does|can) (it|your product) do"],
+      "weight": 1.0
+    },
+    "use_cases": {
+      "synonyms": ["use cases", "use case", "who is it for", "problems it solves", "使用场景", "应用场景"],
+      "patterns": ["use ?case", "solves? (which|what) problem"],
+      "weight": 1.0
+    },
+    "audience": {
+      "synonyms": ["target audience", "target users", "ideal customer", "who should use", "适合人群", "目标用户"],
+      "patterns": ["target (audience|users|customer)", "who (is|are) (it|this) for"],
+      "weight": 1.0
+    },
+    "category": {
+      "synonyms": ["category", "categories", "best category", "product category", "select a category", "topic", "topics", "niche", "industry", "classification", "分类", "类别", "行业", "主题"],
+      "patterns": ["^(category|categories|topics?|niche|industry)$", "which category"],
+      "weight": 1.0
+    },
+    "tags": {
+      "synonyms": ["tags", "keywords", "label", "labels", "keywords or tags", "search terms", "标签", "关键词", "标签关键词"],
+      "patterns": ["^(tags?|keywords?|search terms?|labels?)$", "add (tags|keywords)"],
+      "exclude": ["meta keywords", "seo keywords", "password", "verification"],
+      "weight": 1.0
+    },
+    "pricing_model": {
+      "synonyms": ["pricing model", "pricing", "price model", "business model", "pricing type", "how do you charge", "monetization", "价格模式", "定价模式", "收费模式"],
+      "patterns": ["^(pricing|price|monetization) (model|type|plan)?$", "is (it|your product) free"],
+      "exclude": ["price from", "starting price", "discount", "coupon", "pricing url", "pricing page", "pricing link"],
+      "weight": 1.0
+    },
+    "pricing_text": {
+      "synonyms": ["pricing details", "price details", "pricing description", "price information", "plan details", "价格说明", "价格详情"],
+      "patterns": ["pricing (details|description|information|notes)"],
+      "weight": 1.0
+    },
+    "price_from": {
+      "synonyms": ["price", "starting price", "price from", "lowest price", "monthly price", "amount", "cost", "价格", "起步价", "最低价"],
+      "patterns": ["^(price|cost|amount|fee)$", "(starting|minimum|lowest|from) price"],
+      "weight": 1.0
+    },
+    "launch_date": {
+      "synonyms": ["launch date", "launched date", "release date", "date launched", "上线日期", "发布日期", "上线时间"],
+      "patterns": ["(launch|release|publish)(ed)? date", "^when did you launch"],
+      "weight": 1.0
+    },
+    "founded_year": {
+      "synonyms": ["founded year", "year founded", "year launched", "founding year", "成立年份", "上线年份"],
+      "patterns": ["(founded|founding|launched) year"],
+      "weight": 1.0
+    },
+    "platforms": {
+      "synonyms": ["platforms", "platform", "available on", "supported platforms", "os", "devices", "支持的平台", "平台"],
+      "patterns": ["^(platforms?|devices|os)$", "which platforms?"],
+      "weight": 1.0
+    },
+    "languages": {
+      "synonyms": ["languages", "supported languages", "language support", "语言", "支持语言"],
+      "patterns": ["^(languages?|locales?)$"],
+      "weight": 1.0
+    },
+    "alternatives": {
+      "synonyms": ["alternatives", "alternative to", "similar tools", "competitors", "replace", "竞品", "替代品"],
+      "patterns": ["alternative(s)? (to|for)", "(main |your )?competitors?"],
+      "weight": 1.0
+    },
+    "github_url": {
+      "synonyms": ["github url", "github link", "repository", "repo url", "source code url", "github", "仓库地址", "开源地址"],
+      "patterns": ["(github|gitlab) (url|link|repo)"],
+      "weight": 1.0
+    },
+    "license": {
+      "synonyms": ["license", "licence", "open source license", "许可协议", "开源协议"],
+      "patterns": ["^(license|licence)$"],
+      "weight": 1.0
+    },
+    "email": {
+      "synonyms": ["email", "e-mail", "email address", "contact email", "your email", "email for contact", "submitter email", "邮箱", "联系邮箱", "电子邮箱", "邮件"],
+      "patterns": ["e-?mail( address)?", "^mail$"],
+      "exclude": ["email verification", "confirm email", "verify your email", "email list", "newsletter", "email marketing", "password", "code"],
+      "weight": 1.0
+    },
+    "full_name": {
+      "synonyms": ["name", "your name", "full name", "contact name", "submitter name", "name of submitter", "姓名", "联系人", "你的名字"],
+      "patterns": ["^(your |full |contact )?name$", "who (is|are) you"],
+      "exclude": ["product name", "tool name", "app name", "site name", "company name", "startup name", "brand", "project name", "business name", "domain name", "first name", "last name", "user name", "username", "nickname", "file name", "tag name", "产品名", "名称"],
+      "weight": 1.0
+    },
+    "first_name": {
+      "synonyms": ["first name", "given name", "given-name", "forename", "名（名字）", "名字"],
+      "patterns": ["first ?name", "given ?name"],
+      "weight": 1.0
+    },
+    "last_name": {
+      "synonyms": ["last name", "surname", "family name", "family-name", "姓"],
+      "patterns": ["last ?name", "family ?name", "surname"],
+      "weight": 1.0
+    },
+    "role": {
+      "synonyms": ["your role", "job title", "position", "title", "role at company", "职务", "职位", "你的角色"],
+      "patterns": ["^(your )?(role|position|job title)$", "job ?title"],
+      "weight": 1.0
+    },
+    "company": {
+      "synonyms": ["company", "company name", "organization", "organisation", "business name", "employer", "公司", "公司名称", "组织"],
+      "patterns": ["^(company|organization|organisation|employer)( name)?$"],
+      "weight": 1.0
+    },
+    "country": {
+      "synonyms": ["country", "country of residence", "your country", "location country", "国家", "所在国家", "地区"],
+      "patterns": ["^(country|nation)$", "which country"],
+      "exclude": ["country code", "state", "province", "city", "region"],
+      "weight": 1.0
+    },
+    "city": {
+      "synonyms": ["city", "town", "city or town", "城市", "所在城市"],
+      "patterns": ["^(city|town)$", "city (or|/) town"],
+      "weight": 1.0
+    },
+    "phone": {
+      "synonyms": ["phone", "phone number", "telephone", "mobile", "contact number", "电话", "手机号", "联系电话"],
+      "patterns": ["(phone|telephone|mobile|cell) ?(number)?"],
+      "weight": 0.9
+    },
+    "twitter": {
+      "synonyms": ["twitter", "twitter handle", "twitter username", "x handle", "x.com username", "twitter url", "twitter profile", "推特", "推特账号"],
+      "patterns": ["(twitter|x)\\.com", "(twitter|x) (handle|username|profile|url|link|account)"],
+      "weight": 1.0
+    },
+    "facebook": {
+      "synonyms": ["facebook", "facebook url", "facebook page", "fb page"],
+      "patterns": ["facebook(\\.com)?( (url|page|profile|link))?"],
+      "weight": 1.0
+    },
+    "instagram": {
+      "synonyms": ["instagram", "instagram handle", "ig profile"],
+      "patterns": ["instagram(\\.com)?( (url|handle|profile))?"],
+      "weight": 1.0
+    },
+    "linkedin": {
+      "synonyms": ["linkedin", "linkedin url", "linkedin profile", "领英"],
+      "patterns": ["linkedin(\\.com)?( (url|profile|link))?"],
+      "weight": 1.0
+    },
+    "youtube": {
+      "synonyms": ["youtube", "youtube channel", "youtube url", "视频号"],
+      "patterns": ["youtube(\\.com)?( (url|channel|link))?"],
+      "weight": 1.0
+    },
+    "discord": {
+      "synonyms": ["discord", "discord invite", "discord server"],
+      "patterns": ["discord(\\.gg|\\.com)?( (invite|server|url))?"],
+      "weight": 1.0
+    },
+    "producthunt": {
+      "synonyms": ["product hunt", "producthunt", "ph profile", "product hunt url"],
+      "patterns": ["product ?hunt( (url|profile|link))?"],
+      "weight": 1.0
+    },
+    "indiehackers": {
+      "synonyms": ["indie hackers", "indiehackers", "ih profile"],
+      "patterns": ["indie ?hackers?"],
+      "weight": 1.0
+    },
+    "website_personal": {
+      "synonyms": ["personal website", "your website", "portfolio", "maker website", "个人网站", "个人主页"],
+      "patterns": ["(personal|maker|founder) (website|site|url|page)", "your (personal )?(website|portfolio)"],
+      "weight": 1.0
+    },
+    "demo_url": {
+      "synonyms": ["demo url", "demo link", "live demo", "try it", "preview link", "演示链接", "在线体验"],
+      "patterns": ["(demo|live|try)( ?it)? (url|link|demo)", "^(demo|live demo)$"],
+      "weight": 1.0
+    },
+    "video_url": {
+      "synonyms": ["video url", "demo video", "video link", "youtube video", "loom video", "walkthrough video", "介绍视频", "演示视频链接"],
+      "patterns": ["video (url|link|demo)", "(loom|youtube)\\.com"],
+      "weight": 1.0
+    },
+    "pricing_url": {
+      "synonyms": ["pricing url", "pricing page", "pricing link", "plans page", "价格页", "定价页"],
+      "patterns": ["pricing (url|page|link)"],
+      "weight": 1.0
+    },
+    "docs_url": {
+      "synonyms": ["docs url", "documentation", "docs link", "help docs", "文档", "文档地址"],
+      "patterns": ["(docs|documentation)( (url|link|site))?"],
+      "weight": 1.0
+    },
+    "blog_url": {
+      "synonyms": ["blog url", "blog link", "blog address", "博客", "博客地址"],
+      "patterns": ["blog (url|link|address)"],
+      "weight": 1.0
+    },
+    "changelog_url": {
+      "synonyms": ["changelog", "release notes", "what's new", "更新日志"],
+      "patterns": ["change ?log( (url|link))?", "release notes"],
+      "weight": 1.0
+    },
+    "privacy_url": {
+      "synonyms": ["privacy policy", "privacy url", "privacy link", "隐私政策", "隐私链接"],
+      "patterns": ["privacy (policy|url|link)"],
+      "weight": 1.0
+    },
+    "terms_url": {
+      "synonyms": ["terms of service", "terms url", "terms and conditions", "tos url", "服务条款", "用户协议"],
+      "patterns": ["terms?( of (service|use))?( (url|link))?"],
+      "weight": 1.0
+    },
+    "rss_url": {
+      "synonyms": ["rss feed", "rss url", "feed url", "rss 订阅"],
+      "patterns": ["(rss|atom|feed)( (url|feed|link))?"],
+      "weight": 1.0
+    },
+    "sitemap_url": {
+      "synonyms": ["sitemap", "sitemap url", "站点地图"],
+      "patterns": ["site ?map( (url|link))?"],
+      "weight": 1.0
+    },
+    "logo": {
+      "synonyms": ["logo", "brand logo", "company logo", "product logo", "icon file", "标志", "徽标", "品牌标识"],
+      "patterns": ["^(your |the )?logo$", "(logo|brand) (image|file|upload|png)"],
+      "weight": 1.0
+    },
+    "icon": {
+      "synonyms": ["app icon", "icon", "icon file", "应用图标", "图标"],
+      "patterns": ["^(app )?icon$"],
+      "weight": 1.0
+    },
+    "favicon": {
+      "synonyms": ["favicon", "site icon", "browser icon", "网站图标"],
+      "patterns": ["favicon"],
+      "weight": 1.0
+    },
+    "cover": {
+      "synonyms": ["cover image", "cover photo", "featured image", "hero image", "banner image", "og image", "social image", "封面图", "封面", "头图"],
+      "patterns": ["(cover|hero|banner|featured|og|social) (image|photo|picture)"],
+      "weight": 1.0
+    },
+    "screenshot": {
+      "synonyms": ["screenshot", "screenshots", "screen shot", "product screenshot", "product image", "app screenshot", "gallery images", "截图", "产品截图", "产品图"],
+      "patterns": ["screen ?shots?", "(product|app|tool) (image|photo|picture)"],
+      "weight": 1.0
+    },
+    "demo_gif": {
+      "synonyms": ["gif", "demo gif", "animated gif", "动图", "演示动图"],
+      "patterns": ["gif( (demo|file|image))?"],
+      "weight": 1.0
+    },
+    "demo_video": {
+      "synonyms": ["demo video", "product video", "video file", "walkthrough", "product tour video", "演示视频", "视频文件"],
+      "patterns": ["(demo|product|promo|explainer) video", "video (file|upload|mp4)"],
+      "weight": 1.0
+    },
+    "maker_avatar": {
+      "synonyms": ["your photo", "avatar", "profile photo", "founder photo", "maker photo", "your headshot", "头像", "个人照片", "创始人照片"],
+      "patterns": ["(your|maker|founder) (photo|picture|avatar|headshot)"],
+      "weight": 1.0
+    },
+    "maker_story": {
+      "synonyms": ["maker story", "why did you build", "why you built this", "your story", "founder story", "tell us your story", "为什么做", "创始人故事", "创作初衷"],
+      "patterns": ["why (did|do) you (build|make|create)", "(your|founder|maker) story"],
+      "weight": 1.0
+    },
+    "launch_comment": {
+      "synonyms": ["launch comment", "first comment", "maker comment", "tell the community", "your pitch to the community", "首发评论", "第一个评论"],
+      "patterns": ["(first|maker|launch) comment"],
+      "weight": 1.0
+    },
+    "pitch": {
+      "synonyms": ["pitch", "email body", "message to us", "note to editors", "static pitch", "推介", "外联正文"],
+      "patterns": ["^(pitch|your pitch)$"],
+      "weight": 1.0
+    },
+    "press_boilerplate": {
+      "synonyms": ["press boilerplate", "boilerplate", "company boilerplate", "about the company", "company description", "公司简介", "媒体介绍"],
+      "patterns": ["(press|company) (boilerplate|description|bio)"],
+      "weight": 1.0
+    },
+    "faq": {
+      "synonyms": ["faq", "frequently asked questions", "q&a", "questions and answers", "常见问题", "问答"],
+      "patterns": ["f-?a-?q", "frequently asked"],
+      "weight": 1.0
+    },
+    "changelog_latest": {
+      "synonyms": ["what's new", "latest release", "recent updates", "latest changelog", "最近更新", "更新说明"],
+      "patterns": ["(latest|recent) (release|update|change)"],
+      "weight": 1.0
+    },
+    "funding": {
+      "synonyms": ["funding", "funding status", "how are you funded", "investment", "融资情况", "资金来源"],
+      "patterns": ["funding (status|stage|round)?", "are you (bootstrapped|funded)"],
+      "weight": 1.0
+    },
+    "team_size": {
+      "synonyms": ["team size", "how many team members", "number of employees", "company size", "团队人数", "公司规模"],
+      "patterns": ["team (size|members)", "how many (people|employees)"],
+      "weight": 1.0
+    },
+    "launch_status": {
+      "synonyms": ["launch status", "product stage", "current stage", "is it launched", "上线状态", "产品阶段"],
+      "patterns": ["(launch|product) (status|stage)", "are you (live|launched)"],
+      "weight": 1.0
+    },
+    "how_did_you_hear": {
+      "synonyms": ["how did you hear about us", "where did you hear about us", "how did you find us", "how did you discover", "怎么知道我们的", "如何得知"],
+      "patterns": ["how (did|do) you (hear|find|discover)", "where did you hear"],
+      "weight": 1.0
+    },
+    "owner": {
+      "synonyms": ["are you the owner", "are you the maker", "is this your product", "i am the owner", "你是作者吗", "我是开发者"],
+      "patterns": ["are you the (owner|maker|founder)", "is (this|it) your (product|site)"],
+      "weight": 1.0
+    },
+    "is_free": {
+      "synonyms": ["is it free", "free to use", "do you offer a free plan", "是否免费", "免费使用"],
+      "patterns": ["is (it|your product) free", "free (plan|tier|version) available"],
+      "weight": 1.0
+    },
+    "signature": {
+      "synonyms": ["signature", "signed by", "署名"],
+      "patterns": ["^(your )?signature$"],
+      "weight": 1.0
+    },
+    "subject": {
+      "synonyms": ["email subject", "subject", "subject line", "主题", "邮件主题"],
+      "patterns": ["^(email )?subject( line)?$"],
+      "exclude": ["subject to", "subject category"],
+      "weight": 1.0
+    },
+    "message": {
+      "synonyms": ["message", "your message", "contact message", "comments", "additional information", "anything else", "notes", "remarks", "留言", "留言内容", "备注", "补充说明"],
+      "patterns": ["^(your )?(message|comment|comments|note|notes|remark|remarks|inquiry|enquiry)$", "(additional|extra|other) (info|information|notes?)", "anything else"],
+      "exclude": ["password", "captcha", "verification", "code"],
+      "weight": 1.0
+    },
+    "referrer": {
+      "synonyms": ["referral", "referred by", "referrer", "who referred you", "推荐人"],
+      "patterns": ["(referral|referrer|referred by)"],
+      "weight": 0.9
+    },
+    "twitter_follow": {
+      "synonyms": ["follow us on twitter", "twitter follow", "关注推特"],
+      "patterns": ["follow us"],
+      "weight": 0.8
+    }
+  },
+  "autocomplete": {
+    "email": "email",
+    "url": "url",
+    "name": "full_name",
+    "given-name": "first_name",
+    "family-name": "last_name",
+    "additional-name": "full_name",
+    "organization": "company",
+    "organization-title": "role",
+    "country": "country",
+    "country-name": "country",
+    "address-level2": "city",
+    "tel": "phone",
+    "tel-national": "phone",
+    "username": "full_name",
+    "twitter": "twitter",
+    "nickname": "full_name"
+  },
+  "qa_answers": {
+    "how_did_you_hear": "Google search",
+    "owner": "Yes",
+    "team_size": "1",
+    "funding": "Bootstrapped",
+    "launch_status": "Launched"
+  }
+}

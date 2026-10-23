@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Select2 style select</title>
+<style>body{font:15px system-ui;margin:24px;max-width:720px}label{display:block;margin:10px 0 2px}
+input,textarea,select{font:inherit;padding:5px;width:100%;max-width:520px}
+.row{display:flex;gap:8px} .hint{color:#6b7280;font-size:12px}
+.hp{position:absolute;left:-9999px} .chips .token{display:inline-block;background:#eef;border-radius:999px;padding:1px 8px;margin:2px}
+[role=listbox]{border:1px solid #ccc;max-height:160px;overflow:auto;background:#fff;position:relative;z-index:5}
+[role=option]{padding:4px 8px;cursor:pointer} [role=option]:hover{background:#eef}
+.ql-editor,.ProseMirror,.ck-editor__editable{border:1px solid #ccc;min-height:70px;padding:6px;background:#fff}
+.choices__list--dropdown{border:1px solid #ccc;background:#fff} .choices__item--choice{padding:4px 8px;cursor:pointer}
+.select2-container{display:inline-block} .select2-selection{border:1px solid #ccc;padding:4px 8px;cursor:pointer}
+.select2-results__option{padding:4px 8px;cursor:pointer}</style>
+</head><body>
+<h1>Select2 style select</h1>
+<p class="hint">Select2：原生 select 仍在，change 后同步可视文本。</p>
+
+<label for="topic">Topic</label>
+<select id="topic" name="topic"><option value="">Select</option><option>Computing</option><option>Art</option><option>Utilities</option></select>
+<div class="select2-container"><div class="select2-selection" id="topic-visual">Select</div></div>
+<label for="name">Product name</label><input id="name"><script>
+const select = document.getElementById('topic');
+window.jQuery = null;
+select.addEventListener('change', () => {document.getElementById('topic-visual').textContent = select.options[select.selectedIndex]?.text || '';});
+document.getElementById('topic-visual').addEventListener('click', () => {
+  const next = [...select.options].find(option => option.text === 'Computing');
+  select.value = next.value; select.dispatchEvent(new Event('change', {bubbles: true}));
+});
+</script>
+<script type="application/json" id="fixture-expect">{"fields":{"#name":"name"},"custom":{"#topic":"category"}}</script>
+</body></html>

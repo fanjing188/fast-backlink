@@ -1,0 +1,27 @@
+{
+  "upstream": "fast-browser-link/native-extension",
+  "upstream_version": "fast-browser-link-releases/current (1.5.x)",
+  "synced_at": "2026-10-22",
+  "files": {
+    "password-values.mjs": {
+      "sha256": "74751033c8263246bb3e40352602268f214f0e42656a81aa53387e2592604ea7",
+      "bytes": 1422,
+      "lines": 39
+    },
+    "target-recovery.mjs": {
+      "sha256": "9efcaf6c273cc396adbe1240a8060de510e3d30b7e8395af71fcbeb67d6a77b4",
+      "bytes": 4740,
+      "lines": 173
+    },
+    "interaction-highlight.mjs": {
+      "sha256": "a3dbd24409a505496d3c3388fb3aa447df0660393db1ab6e17d2f54b4faa2255",
+      "bytes": 19657,
+      "lines": 542
+    },
+    "brand.css": {
+      "sha256": "8bd88a24eaef60d6b434293e77e19011f40125980e57b22dd72e7bae9505353a",
+      "bytes": 8265,
+      "lines": 34
+    }
+  }
+}

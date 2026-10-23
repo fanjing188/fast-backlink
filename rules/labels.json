@@ -1,0 +1,90 @@
+{
+  "name": [
+    "product name",
+    "tool name",
+    "company name",
+    "name",
+    "产品名",
+    "名称",
+    "昵称",
+    "site title",
+    "title or name",
+    "site name"
+  ],
+  "url": [
+    "website url",
+    "product url",
+    "website",
+    "url",
+    "网址",
+    "domain name or url",
+    "web site url",
+    "site url",
+    "web site",
+    "homepage"
+  ],
+  "tagline": [
+    "tagline",
+    "one line",
+    "one-line",
+    "一句话"
+  ],
+  "short_description": [
+    "short description",
+    "summary",
+    "短描述"
+  ],
+  "description": [
+    "long description",
+    "description",
+    "about",
+    "长描述",
+    "描述"
+  ],
+  "email": [
+    "contact email",
+    "email",
+    "邮箱",
+    "e-mail",
+    "your email",
+    "e-mail address"
+  ],
+  "category": [
+    "category",
+    "categories",
+    "分类",
+    "topic",
+    "topics"
+  ],
+  "tags": [
+    "tags",
+    "keywords",
+    "标签"
+  ],
+  "pricing": [
+    "pricing model",
+    "pricing",
+    "price model",
+    "价格模式"
+  ],
+  "logo": [
+    "logo",
+    "标志"
+  ],
+  "screenshot": [
+    "screenshot",
+    "screenshots",
+    "截图"
+  ],
+  "subject": [
+    "email subject",
+    "subject",
+    "主题"
+  ],
+  "message": [
+    "contact message",
+    "message",
+    "正文",
+    "留言"
+  ]
+}

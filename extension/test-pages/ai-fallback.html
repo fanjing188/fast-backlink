@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>AI fallback form</title>
+<style>body{font:15px system-ui;margin:24px;max-width:720px}label{display:block;margin:10px 0 2px}
+input,textarea,select{font:inherit;padding:5px;width:100%;max-width:520px}</style>
+</head><body>
+<h1>AI fallback form</h1>
+<p>这些标签故意避开确定性同义词，只能由 AI 兜底映射；密码和同意条款不参与。</p>
+
+<form id="f">
+<label for="name">Product name *</label><input id="name" name="name" required>
+<label for="site">Where should we point readers? *</label><input id="site" name="landing" required>
+<label for="pitch">Card blurb for the listing *</label><input id="pitch" name="pitch_line" maxlength="80" required>
+<label for="question">What brought you here today? *</label><input id="question" name="arrival" required>
+<label for="mystery">Favorite color</label><input id="mystery" name="favorite_color">
+<fieldset><legend>How do you charge? *</legend>
+<label><input type="radio" name="billing" value="Free" required> Free</label>
+<label><input type="radio" name="billing" value="Freemium"> Freemium</label>
+<label><input type="radio" name="billing" value="Paid"> Paid</label>
+</fieldset>
+<label for="tests">Which tests should we list? *</label><select id="tests" name="tests" multiple required>
+<option>mouse test</option><option>keyboard test</option><option>display test</option><option>webcam test</option>
+</select>
+<label for="password">Password</label><input id="password" name="password" type="password">
+<label for="agree"><input id="agree" type="checkbox" style="width:auto"> I agree to the terms</label>
+<button type="submit">Submit</button>
+</form>
+<script type="application/json" id="fixture-expect">{"fields":{"#name":"name","#site":"url","#pitch":"tagline","#question":"how_did_you_hear"},"checkboxNever":["#agree"]}</script>
+</body></html>

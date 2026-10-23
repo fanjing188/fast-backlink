@@ -1,0 +1,19 @@
+Fast-Backlink
+
+This project is distributed under the MIT License. See LICENSE.
+
+Included Fast-browser-link components and adaptations are redistributed under
+MIT with permission confirmed by the copyright holder. Their license is at
+extension/vendor/fbl/LICENSE. This notice covers the copies and adaptations
+included in this repository; it does not claim a license for the entire
+upstream product or unrelated components.
+
+Included copies: extension/vendor/fbl/password-values.mjs,
+extension/vendor/fbl/target-recovery.mjs,
+extension/vendor/fbl/interaction-highlight.mjs and
+extension/vendor/fbl/brand.css.
+
+Adaptations include extension/lib/vendor-fbl.js, extension/lib/cdp.js and
+shared UI icon constructions described in extension/vendor/fbl/PROVENANCE.md.
+Existing source notices are preserved. The project logo is in
+extension/icons/mark.svg and is covered by the project MIT license.

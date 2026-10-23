@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Tags input</title>
+<style>body{font:15px system-ui;margin:24px;max-width:720px}label{display:block;margin:10px 0 2px}
+input,textarea,select{font:inherit;padding:5px;width:100%;max-width:520px}
+.row{display:flex;gap:8px} .hint{color:#6b7280;font-size:12px}
+.hp{position:absolute;left:-9999px} .chips .token{display:inline-block;background:#eef;border-radius:999px;padding:1px 8px;margin:2px}
+[role=listbox]{border:1px solid #ccc;max-height:160px;overflow:auto;background:#fff;position:relative;z-index:5}
+[role=option]{padding:4px 8px;cursor:pointer} [role=option]:hover{background:#eef}
+.ql-editor,.ProseMirror,.ck-editor__editable{border:1px solid #ccc;min-height:70px;padding:6px;background:#fff}
+.choices__list--dropdown{border:1px solid #ccc;background:#fff} .choices__item--choice{padding:4px 8px;cursor:pointer}
+.select2-container{display:inline-block} .select2-selection{border:1px solid #ccc;padding:4px 8px;cursor:pointer}
+.select2-results__option{padding:4px 8px;cursor:pointer}</style>
+</head><body>
+<h1>Tags input</h1>
+<p class="hint">标签输入：回车成一个标签，写入隐藏输入。</p>
+
+<label for="tagbox">Tags</label>
+<div class="tags-input chips" id="tagbox" style="border:1px solid #ccc;padding:5px">
+  <span id="chips"></span><input id="tags-field" style="border:0;width:60%;display:inline-block">
+</div>
+<input type="hidden" id="tags" name="tags">
+<label for="name">Product name</label><input id="name"><script>
+const input = document.getElementById('tags-field'), chips = document.getElementById('chips');
+let list = [];
+input.addEventListener('keydown', event => {
+  if (event.key !== 'Enter') return;
+  event.preventDefault();
+  const value = input.value.trim();
+  if (!value) return;
+  list.push(value); input.value = '';
+  chips.innerHTML = list.map(item => `<span class="token">${item}</span>`).join('');
+  document.getElementById('tags').value = list.join(', ');
+});
+</script>
+<script type="application/json" id="fixture-expect">{"fields":{"#name":"name"},"tags":{"#tags-field":"#tags"}}</script>
+</body></html>

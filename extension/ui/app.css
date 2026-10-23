@@ -1,0 +1,281 @@
+/* Fast-Backlink 应用层：布局、列表、卡片、表格、空状态、骨架、提示。
+   设计令牌来自 vendor/fbl/brand.css（与 Fast-browser-link 同一套品牌语言）。 */
+
+:root {
+  --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 24px; --sp-6: 32px;
+  --fs-1: 12px; --fs-2: 13px; --fs-3: 14px; --fs-4: 16px; --fs-5: 20px; --fs-6: 24px;
+  --control: 36px; --control-sm: 32px;
+  --r-lg: 14px; --dur: 160ms; --ease: cubic-bezier(.2, .7, .3, 1);
+  --sidebar: 244px;
+}
+
+/* 可达性：brand.css 的 --ink-3(#7c8696) 在浅底上约 3.4:1、--warn(#94650a) 约 4.49:1，
+   作为 11–12px 正文达不到 WCAG AA。这里只调整浅色模式的文字色，其它品牌令牌不动。 */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {--ink-3: #616b7a; --warn: #8a5d08}
+}
+@media (prefers-color-scheme: dark) {
+  /* 暗色下 #7f8a9c 在卡片/选中行上只有 3.7–4.1:1，次级文字提亮到 #96a1b1。
+     选择器与 brand.css 的暗色块同形，靠加载顺序生效。 */
+  :root:not([data-theme="light"]) {--ink-3: #96a1b1}
+}
+
+html, body {height: 100%}
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font: var(--fs-3)/1.55 var(--ui);
+  -webkit-font-smoothing: antialiased;
+}
+a {color: var(--brand); text-decoration: none}
+a:hover {text-decoration: underline}
+h1, h2, h3, h4 {margin: 0; line-height: 1.35; font-weight: 650}
+h1 {font-size: var(--fs-5)} h2 {font-size: var(--fs-4)} h3 {font-size: var(--fs-3)}
+p {margin: 0}
+code, kbd, .mono {font-family: var(--mono); font-size: var(--fs-1)}
+kbd {border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 5px; padding: 0 5px; background: var(--paper); font-size: 10px}
+[hidden] {display: none !important}
+::selection {background: var(--brand-soft)}
+
+/* ---------- 通用工具 ---------- */
+.stack {display: flex; flex-direction: column; gap: var(--sp-3)}
+.stack.tight {gap: var(--sp-2)}
+.row {display: flex; align-items: center; gap: var(--sp-2)}
+.row.between {justify-content: space-between}
+.row.wrap {flex-wrap: wrap}
+.grow {flex: 1; min-width: 0}
+.muted {color: var(--ink-3); font-size: var(--fs-2)}
+.muted-2 {color: var(--ink-2)}
+.truncate {overflow: hidden; text-overflow: ellipsis; white-space: nowrap}
+.clamp-2 {display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden}
+.sr-only {position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%)}
+.spacer {flex: 1}
+.hr {height: 1px; background: var(--line-2); border: 0; margin: var(--sp-2) 0}
+
+/* ---------- 品牌头 ---------- */
+.appbar {
+  display: flex; align-items: center; gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4); background: var(--paper);
+  border-bottom: 1px solid var(--line-2); position: sticky; top: 0; z-index: 20;
+}
+.lockup {display: flex; align-items: center; gap: var(--sp-2); font-weight: 700; font-size: var(--fs-4); letter-spacing: .2px; white-space: nowrap}
+.lockup .mark {width: 24px; height: 24px; border-radius: 7px; box-shadow: var(--shadow); flex: none}
+.appbar .sub {color: var(--ink-3); font-size: var(--fs-1); font-weight: 500}
+.conn {display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-1); color: var(--ink-2); white-space: nowrap}
+.conn i {width: 8px; height: 8px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 3px var(--ok-bg)}
+.conn.off i {background: var(--idle); box-shadow: 0 0 0 3px var(--idle-bg)}
+.conn.warn i {background: var(--warn); box-shadow: 0 0 0 3px var(--warn-bg)}
+
+.workspace-nav {display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3); background: var(--paper); border-bottom: 1px solid var(--line-2)}
+.workspace-nav a {justify-content: center; min-width: 0; color: var(--ink-2); background: var(--paper);
+  border: 1px solid var(--line); text-decoration: none}
+.workspace-nav a:hover {color: var(--brand); border-color: var(--brand); background: var(--brand-soft)}
+.workspace-nav a:focus-visible {outline: 2px solid var(--brand); outline-offset: 2px}
+.workspace-nav .ico {width: 14px; height: 14px}
+.side .workspace-nav {grid-template-columns: minmax(0, 1fr); padding: 0; background: transparent; border: 0}
+
+/* ---------- 控件 ---------- */
+button, .btn {min-height: var(--control); padding: 6px 12px; border-radius: var(--rc); font-size: var(--fs-2); font-weight: 560;
+  display: inline-flex; align-items: center; gap: 6px; transition: background var(--dur) var(--ease), border-color var(--dur), box-shadow var(--dur)}
+button .ico {width: 14px; height: 14px}
+button.primary {background: var(--brand); border-color: var(--brand); color: var(--on-brand); box-shadow: 0 1px 2px rgba(20,30,50,.16)}
+button.primary:hover {filter: brightness(1.06); background: var(--brand)}
+button.subtle {border-color: var(--line-2); color: var(--ink-2)}
+button.ghost {border-color: transparent; background: transparent; color: var(--ink-2)}
+button.ghost:hover {background: var(--hover)}
+button.icon {padding: 6px; min-width: var(--control); justify-content: center}
+button.danger {color: var(--bad); border-color: color-mix(in srgb, var(--bad) 40%, var(--line)); background: var(--paper)}
+button.danger:hover {background: var(--bad-bg); border-color: var(--bad)}
+button.sm {min-height: var(--control-sm); padding: 4px 9px; font-size: var(--fs-2); border-radius: var(--rc)}
+button.link {border: 0; background: none; padding: 4px 0; min-height: var(--control-sm); color: var(--brand); font-size: var(--fs-2)}
+
+input[type=text], input[type=url], input[type=search], input[type=number], select, textarea {
+  width: 100%; background: var(--paper); color: var(--ink); border: 1px solid var(--line);
+  border-radius: var(--rc); padding: 7px 10px; font-size: var(--fs-3); min-height: var(--control);
+  transition: border-color var(--dur), box-shadow var(--dur);
+}
+textarea {resize: vertical; line-height: 1.5}
+input:focus, select:focus, textarea:focus {border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft)}
+input:focus:not(:focus-visible), select:focus:not(:focus-visible), textarea:focus:not(:focus-visible) {outline: none}
+input:focus-visible, select:focus-visible, textarea:focus-visible {outline: 2px solid var(--brand); outline-offset: 1px}
+input::placeholder, textarea::placeholder {color: var(--ink-3)}
+select {appearance: none; padding-inline-end: 26px; background-image: linear-gradient(45deg, transparent 50%, var(--ink-3) 50%), linear-gradient(135deg, var(--ink-3) 50%, transparent 50%);
+  background-position: calc(100% - 14px) 14px, calc(100% - 9px) 14px; background-size: 5px 5px, 5px 5px; background-repeat: no-repeat}
+.field {display: flex; flex-direction: column; gap: 4px}
+.field > label, .label {font-size: var(--fs-1); font-weight: 600; color: var(--ink-2); letter-spacing: .1px}
+.field .hint {font-size: var(--fs-1); color: var(--ink-3)}
+.search {position: relative; flex: 1; min-width: 120px}
+.search .ico {position: absolute; left: 9px; top: 50%; transform: translateY(-50%); color: var(--ink-3); width: 14px; height: 14px}
+.search input {padding-inline-start: 29px}
+.switch {display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); padding: 10px 0; border-bottom: 1px solid var(--line-2)}
+.switch:last-child {border-bottom: 0}
+.switch .txt {display: flex; flex-direction: column; gap: 1px}
+.switch .txt small {color: var(--ink-3); font-size: var(--fs-1)}
+.smooth-switch {appearance: none !important; width: 36px !important; height: 21px !important; min-height: 21px !important; flex: none}
+.smooth-switch:before {width: 17px !important; height: 17px !important}
+.smooth-switch:checked:before {transform: translateX(15px) !important}
+input[type=number].num {font-family: var(--mono); font-variant-numeric: tabular-nums; text-align: center}
+
+/* ---------- 页签 ---------- */
+.tabs {display: flex; gap: 0; padding: 0 4px; border-bottom: 1px solid var(--line-2); background: var(--paper);
+  position: sticky; top: 57px; z-index: 15; overflow-x: auto; scrollbar-width: none}
+.tabs::-webkit-scrollbar {display: none}
+.tabs [role=tab] {border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: none; color: var(--ink-3);
+  flex: 1; gap: 4px; padding: 10px 4px; font-weight: 560; white-space: nowrap; min-height: 40px; justify-content: center}
+.tabs [role=tab]:hover {background: none; color: var(--ink)}
+.tabs [role=tab][aria-selected=true] {color: var(--brand); border-bottom-color: var(--brand)}
+.tabs [role=tab] .ico {width: 14px; height: 14px}
+.tabs .count {font-family: var(--mono); font-size: 10px; min-width: 16px; height: 15px; line-height: 15px; text-align: center;
+  border-radius: 8px; background: var(--line-2); color: var(--ink-2); padding: 0 4px}
+.tabs [aria-selected=true] .count {background: var(--brand-soft); color: var(--brand)}
+
+/* ---------- 统计条 ---------- */
+.statline {display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; background: var(--line-2);
+  border-bottom: 1px solid var(--line-2)}
+.stat {background: var(--paper); padding: 8px 10px; display: flex; flex-direction: column; gap: 1px; cursor: default}
+.stat .k {font-size: 10px; letter-spacing: .4px; text-transform: uppercase; color: var(--ink-3); font-weight: 600}
+.stat .v {font-family: var(--mono); font-size: var(--fs-5); font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.2}
+.stat.ok .v {color: var(--ok)} .stat.warn .v {color: var(--warn)} .stat.special .v {color: var(--bad)}
+.stat.idle .v {color: var(--ink-2)}
+.progress {height: 4px; background: var(--line-2); overflow: hidden}
+.progress i {display: block; height: 100%; background: var(--brand); transition: width 320ms var(--ease)}
+.progress.warn i {background: var(--warn)}
+
+/* ---------- 列表与卡片 ---------- */
+.list {list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--sp-2)}
+.card {background: var(--paper); border: 1px solid var(--line); border-radius: var(--r); box-shadow: var(--shadow)}
+.card.flat {box-shadow: none}
+.card .pad {padding: var(--sp-3)}
+.card .head {display: flex; align-items: center; gap: var(--sp-2); padding: 10px var(--sp-3); border-bottom: 1px solid var(--line-2)}
+.card .head h3 {flex: 1}
+.rowitem {display: flex; align-items: flex-start; gap: var(--sp-2); padding: 10px var(--sp-3); background: var(--paper);
+  border: 1px solid var(--line); border-radius: var(--r); cursor: pointer; transition: border-color var(--dur), background var(--dur); position: relative}
+.rowitem:hover {background: var(--hover); border-color: color-mix(in srgb, var(--brand) 26%, var(--line))}
+.rowitem:focus-visible {outline: 2px solid var(--brand); outline-offset: 1px}
+.rowitem .lead {flex: none; margin-top: 1px}
+.rowitem .body {flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px}
+.rowitem .title {display: flex; align-items: center; gap: 6px; font-weight: 600; font-size: var(--fs-2)}
+.rowitem .meta {color: var(--ink-3); font-size: var(--fs-1); display: flex; align-items: center; gap: 6px; flex-wrap: wrap}
+.rowitem .value {font-family: var(--mono); font-size: var(--fs-1); color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis}
+.rowitem .acts {display: flex; gap: 4px; opacity: .25; transition: opacity var(--dur)}
+.rowitem:hover .acts, .rowitem:focus-within .acts {opacity: 1}
+.rowitem[data-status=filled] {border-inline-start: 3px solid var(--ok)}
+.rowitem[data-status=pending], .rowitem[data-status=confirm] {border-inline-start: 3px solid var(--warn)}
+.rowitem[data-status=captcha], .rowitem[data-status=sensitive] {border-inline-start: 3px solid var(--bad)}
+.rowitem[data-status=unmatched] {border-inline-start: 3px solid var(--line)}
+.rowitem[data-status=honeypot] {opacity: .62; border-inline-start: 3px solid var(--line)}
+.rowitem[aria-expanded=true] {border-color: var(--brand)}
+
+.meter {width: 34px; height: 4px; border-radius: 2px; background: var(--line-2); overflow: hidden; flex: none}
+.meter i {display: block; height: 100%; background: var(--ok)}
+.meter.warn i {background: var(--warn)}
+.meter.idle i {background: var(--idle)}
+
+.pill {display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 7px; border-radius: 999px;
+  font-size: 10px; font-weight: 600; letter-spacing: .2px; background: var(--idle-bg); color: var(--ink-2); white-space: nowrap}
+.pill.brand {background: var(--brand-soft); color: var(--brand)}
+.pill.ok {background: var(--ok-bg); color: var(--ok)}
+.pill.warn {background: var(--warn-bg); color: var(--warn)}
+.pill.bad {background: var(--bad-bg); color: var(--bad)}
+.pill.line {background: transparent; border: 1px solid var(--line)}
+
+/* ---------- 媒体 ---------- */
+.media-grid {display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: var(--sp-2)}
+.media {border: 1px solid var(--line); border-radius: var(--r); background: var(--paper); overflow: hidden; display: flex; flex-direction: column}
+.media .thumb {aspect-ratio: 4 / 3; background: var(--line-2) center/contain no-repeat; display: flex; align-items: center; justify-content: center; color: var(--ink-3)}
+.media .thumb img {width: 100%; height: 100%; object-fit: contain; display: block}
+.media .info {padding: 6px 8px; display: flex; flex-direction: column; gap: 1px}
+.media .name {font-size: var(--fs-1); font-weight: 600}
+.media .dims {font-size: 10px; color: var(--ink-3); font-family: var(--mono)}
+.media .bar {display: flex; gap: 4px; padding: 0 6px 6px}
+.media .bar button {flex: 1; justify-content: center}
+.dropzone {border: 1.5px dashed var(--line); border-radius: var(--r); padding: var(--sp-5) var(--sp-3); text-align: center;
+  color: var(--ink-3); background: var(--paper); transition: border-color var(--dur), background var(--dur); cursor: pointer}
+.dropzone:hover, .dropzone.over {border-color: var(--brand); background: var(--brand-soft); color: var(--brand)}
+.dropzone .ico {width: 22px; height: 22px; margin-bottom: 4px}
+
+/* ---------- 表格 ---------- */
+table.data {width: 100%; border-collapse: collapse; font-size: var(--fs-2); background: var(--paper)}
+table.data th, table.data td {padding: 7px 10px; text-align: start; border-bottom: 1px solid var(--line-2); vertical-align: top}
+table.data thead th {position: sticky; top: 0; background: var(--paper); color: var(--ink-3); font-size: 10px; letter-spacing: .5px;
+  text-transform: uppercase; font-weight: 650; border-bottom: 1px solid var(--line); z-index: 1}
+table.data tbody tr:hover {background: var(--hover)}
+table.data tbody tr[aria-expanded=true] {background: var(--brand-soft)}
+table.data td.mono {font-family: var(--mono); font-size: var(--fs-1); white-space: nowrap}
+table.data .detail td {background: var(--bg); padding: 0}
+table.data .detail pre {margin: 0; padding: 10px 12px; font: var(--fs-1)/1.5 var(--mono); white-space: pre-wrap; word-break: break-word; max-height: 260px; overflow: auto}
+.lvl {display: inline-flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 700; letter-spacing: .3px; text-transform: uppercase}
+.lvl i {width: 7px; height: 7px; border-radius: 50%; background: var(--idle)}
+.lvl.debug {color: var(--ink-3)} .lvl.debug i {background: var(--idle)}
+.lvl.info {color: var(--brand)} .lvl.info i {background: var(--brand)}
+.lvl.warn {color: var(--warn)} .lvl.warn i {background: var(--warn)}
+.lvl.error {color: var(--bad)} .lvl.error i {background: var(--bad)}
+
+/* ---------- 空状态 / 骨架 / 提示 ---------- */
+.empty {display: flex; flex-direction: column; align-items: center; gap: var(--sp-2); text-align: center;
+  padding: var(--sp-6) var(--sp-4); color: var(--ink-3)}
+.empty .ring {width: 46px; height: 46px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  background: var(--brand-soft); color: var(--brand)}
+.empty .ring .ico {width: 22px; height: 22px}
+.empty b {color: var(--ink); font-size: var(--fs-3)}
+.empty p {font-size: var(--fs-2); max-width: 34ch}
+.empty .row {margin-top: 2px}
+.skel {border-radius: 6px; background: linear-gradient(90deg, var(--line-2) 25%, var(--hover) 37%, var(--line-2) 63%);
+  background-size: 400% 100%; animation: shimmer 1.4s ease infinite; height: 12px}
+.skel.line {height: 10px; margin: 5px 0}
+.skel.card {height: 64px; border-radius: var(--r)}
+@keyframes shimmer {0% {background-position: 100% 0} 100% {background-position: 0 0}}
+.banner {display: flex; gap: var(--sp-2); align-items: flex-start; padding: 9px 11px; border-radius: var(--r); font-size: var(--fs-2)}
+.banner .ico {flex: none; margin-top: 1px; width: 15px; height: 15px}
+.banner.err {background: var(--bad-bg); color: var(--bad)}
+.banner.warn {background: var(--warn-bg); color: var(--warn)}
+.banner.info {background: var(--brand-soft); color: var(--brand)}
+.banner.ok {background: var(--ok-bg); color: var(--ok)}
+.banner a, .banner button.link {color: inherit; text-decoration: underline}
+.toasts {position: fixed; inset-inline: 12px; bottom: 66px; display: flex; flex-direction: column; gap: 6px; z-index: 60; pointer-events: none}
+.toast {pointer-events: auto; display: flex; align-items: center; gap: 8px; padding: 9px 11px; border-radius: var(--r);
+  background: var(--ink); color: var(--paper); box-shadow: 0 8px 28px rgba(10, 16, 28, .28); font-size: var(--fs-2);
+  animation: toast-in 180ms var(--ease)}
+.toast .ico {width: 15px; height: 15px}
+.toast.ok .ico {color: var(--ok)}
+.toast.err .ico {color: var(--bad)}
+.toast.warn .ico {color: var(--warn)}
+@keyframes toast-in {from {opacity: 0; transform: translateY(6px)} to {opacity: 1; transform: none}}
+dialog.sheet {border: 0; padding: 0; border-radius: var(--r-lg); box-shadow: 0 24px 64px rgba(12, 18, 30, .32);
+  width: min(420px, calc(100vw - 32px)); background: var(--paper); color: var(--ink)}
+dialog.sheet::backdrop {background: rgba(12, 18, 30, .38); backdrop-filter: blur(2px)}
+dialog.sheet .pad {padding: var(--sp-4)}
+dialog.sheet .foot {display: flex; justify-content: flex-end; gap: var(--sp-2); padding: var(--sp-3) var(--sp-4); border-top: 1px solid var(--line-2)}
+
+/* ---------- 应用外壳 ---------- */
+.app {display: grid; grid-template-rows: auto auto 1fr auto; min-height: 100vh}
+.shell {display: grid; grid-template-columns: var(--sidebar) minmax(0, 1fr); min-height: 100vh}
+.side {background: var(--paper); border-inline-end: 1px solid var(--line-2); padding: var(--sp-3); display: flex; flex-direction: column; gap: var(--sp-4)}
+.side h3 {font-size: var(--fs-1); color: var(--ink-3); margin-bottom: 8px}
+.navlist {list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px}
+.navlist button {width: 100%; justify-content: flex-start; border: 0; background: none; color: var(--ink-2); padding: 7px 9px; border-radius: var(--rc); font-weight: 560}
+.navlist button:hover {background: var(--hover); color: var(--ink)}
+.navlist button[aria-current=true] {background: var(--brand-soft); color: var(--brand)}
+.navlist .ico {width: 14px; height: 14px}
+.main {padding: var(--sp-4) var(--sp-5) var(--sp-6); min-width: 0}
+.section {display: flex; flex-direction: column; gap: var(--sp-3)}
+.section > .head {display: flex; align-items: center; gap: var(--sp-2)}
+.section > .head h2 {flex: 1}
+.grid2 {display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: var(--sp-3)}
+
+footer.actionbar, .actionbar {position: sticky; bottom: 0; background: color-mix(in srgb, var(--paper) 92%, transparent);
+  backdrop-filter: blur(8px); border-top: 1px solid var(--line-2); padding: 9px var(--sp-3); display: flex; gap: 6px; flex-wrap: wrap; z-index: 18}
+.actionbar .primary {flex: 1; justify-content: center; min-width: 110px}
+
+@media (max-width: 720px) {
+  .shell {grid-template-columns: 1fr}
+  .side {border-inline-end: 0; border-bottom: 1px solid var(--line-2)}
+  .main {padding: var(--sp-3)}
+  .statline {grid-template-columns: repeat(2, minmax(0, 1fr))}
+}
+@media (max-width: 360px) {
+  .tabs [role=tab] .ico {display: none}
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {animation: none !important; transition: none !important; scroll-behavior: auto !important}
+}

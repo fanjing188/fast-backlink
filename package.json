@@ -1,0 +1,18 @@
+{
+  "name": "backlink-kit",
+  "version": "1.0.0",
+  "description": "Local-first backlink form assistant: reusable product assets, verification archives and a browser/agent CLI.",
+  "scripts": {
+    "test": "node --test extension/tests/*.test.cjs",
+    "test:py": "BK_PROTECT_REAL=1 python3 -m unittest",
+    "test:e2e": "node --test --test-concurrency=1 extension/e2e/*.test.mjs",
+    "vendor:check": "node extension/vendor/fbl/sync-fbl.mjs --check"
+  },
+  "author": "FanJean",
+  "license": "MIT",
+  "type": "commonjs",
+  "devDependencies": {
+    "playwright": "^1.64.1"
+  },
+  "private": true
+}

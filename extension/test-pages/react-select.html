@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>react-select style combobox</title>
+<style>body{font:15px system-ui;margin:24px;max-width:720px}label{display:block;margin:10px 0 2px}
+input,textarea,select{font:inherit;padding:5px;width:100%;max-width:520px}
+.row{display:flex;gap:8px} .hint{color:#6b7280;font-size:12px}
+.hp{position:absolute;left:-9999px} .chips .token{display:inline-block;background:#eef;border-radius:999px;padding:1px 8px;margin:2px}
+[role=listbox]{border:1px solid #ccc;max-height:160px;overflow:auto;background:#fff;position:relative;z-index:5}
+[role=option]{padding:4px 8px;cursor:pointer} [role=option]:hover{background:#eef}
+.ql-editor,.ProseMirror,.ck-editor__editable{border:1px solid #ccc;min-height:70px;padding:6px;background:#fff}
+.choices__list--dropdown{border:1px solid #ccc;background:#fff} .choices__item--choice{padding:4px 8px;cursor:pointer}
+.select2-container{display:inline-block} .select2-selection{border:1px solid #ccc;padding:4px 8px;cursor:pointer}
+.select2-results__option{padding:4px 8px;cursor:pointer}</style>
+</head><body>
+<h1>react-select style combobox</h1>
+<p class="hint">自定义下拉：点开后选项点击写入隐藏输入。</p>
+
+<div class="react-select" id="catBox" style="position:relative">
+  <div class="react-select__control" style="border:1px solid #ccc;padding:4px"><input class="react-select__input" id="category-input" role="combobox" aria-expanded="false" style="border:0;width:100%"><span class="react-select__single-value" id="category-selected"></span></div>
+  <div class="react-select__menu" hidden><div class="react-select__option" data-value="Art">Art</div><div class="react-select__option" data-value="Hardware Testing">Hardware Testing</div><div class="react-select__option" data-value="Utilities">Utilities</div></div>
+  <input type="hidden" id="category" name="category">
+</div>
+<label for="name">Product name</label><input id="name"><script>
+const box = document.getElementById('catBox'), menu = box.querySelector('.react-select__menu'), input = document.getElementById('category-input');
+input.addEventListener('focus', () => {menu.hidden = false; input.setAttribute('aria-expanded','true');});
+input.addEventListener('input', () => {menu.hidden = false;});
+for (const option of box.querySelectorAll('.react-select__option')) {
+  option.addEventListener('click', () => {
+    document.getElementById('category').value = option.dataset.value;
+    document.getElementById('category-selected').textContent = option.dataset.value;
+    input.value = option.dataset.value;
+    menu.hidden = true;
+  });
+}
+</script>
+<script type="application/json" id="fixture-expect">{"fields":{"#name":"name"},"custom":{"#category-input":"category","#category":"Hardware Testing"}}</script>
+</body></html>

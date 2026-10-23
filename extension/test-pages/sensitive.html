@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Sensitive fields</title>
+<style>body{font:15px system-ui;margin:24px}label{display:block;margin:10px 0 2px}input{font:inherit;padding:5px;width:320px}</style>
+</head><body>
+<h1>Sensitive fields</h1>
+<form>
+<label for="name">Product name</label><input id="name">
+<label for="pw">Password</label><input id="pw" type="password" autocomplete="current-password">
+<label for="card">Card number</label><input id="card" autocomplete="cc-number">
+<label for="otp">One-time code</label><input id="otp" autocomplete="one-time-code">
+<label for="sms">SMS code</label><input id="sms" name="sms_code">
+</form>
+<script type="application/json" id="fixture-expect">{"fields":{"#name":"name"},"mustStayEmpty":["#pw","#card","#otp","#sms"]}</script>
+</body></html>

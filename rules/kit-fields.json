@@ -1,0 +1,12 @@
+{
+  "网址": "url",
+  "产品名": "name",
+  "一句话": "tagline",
+  "短描述": "short_description",
+  "长描述": "description",
+  "分类候选": "category",
+  "标签": "tags",
+  "价格模式": "pricing",
+  "联系邮箱": "email",
+  "署名": "signature"
+}

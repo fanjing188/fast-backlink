@@ -1,0 +1,25 @@
+__pycache__/
+*.pyc
+runs/
+node_modules/
+.DS_Store
+
+# Personal configuration and business assets are not public source.
+config.json
+config.local.json
+.env
+.env.*
+!.env.example
+kits/
+data/
+rules/learned.json
+*.log
+*.zip
+docs/growth/
+docs/releases/
+docs/screenshots/
+docs/dev-notes.md
+docs/asset-readback.json
+docs/new-product-reuse-preview.json
+docs/fast-backlink-v1-plan.md
+docs/fast-backlink-1.0-report.md

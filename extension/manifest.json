@@ -1,0 +1,91 @@
+{
+  "manifest_version": 3,
+  "name": "Fast-Backlink",
+  "description": "辅助填写外链提交表单，保存产品素材与待验证存档，换产品复用来源经验。验证码与最终提交由你完成。",
+  "version": "1.0.0",
+  "minimum_chrome_version": "116",
+  "permissions": [
+    "storage",
+    "unlimitedStorage",
+    "activeTab",
+    "scripting",
+    "debugger",
+    "sidePanel",
+    "contextMenus",
+    "tabs",
+    "alarms"
+  ],
+  "host_permissions": [
+    "http://127.0.0.1:*/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "Fast-Backlink · 填表、存档与资产复用",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png",
+      "48": "icons/icon-48.png",
+      "128": "icons/icon-128.png"
+    }
+  },
+  "side_panel": {
+    "default_path": "panel.html"
+  },
+  "options_page": "options.html",
+  "commands": {
+    "fill-field": {
+      "suggested_key": {
+        "default": "Alt+F"
+      },
+      "description": "填入当前字段（弹出候选）"
+    },
+    "fill-page": {
+      "suggested_key": {
+        "default": "Alt+Shift+F"
+      },
+      "description": "填整页"
+    },
+    "restore-snapshot": {
+      "suggested_key": {
+        "default": "Alt+R"
+      },
+      "description": "复原最近快照"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ],
+      "js": [
+        "logic.js",
+        "lib/text.js",
+        "lib/vendor-fbl.js",
+        "lib/platforms.js",
+        "lib/fields.js",
+        "lib/widgets.js",
+        "lib/match.js",
+        "lib/ai.js",
+        "lib/snapshot.js",
+        "lib/idb.js",
+        "lib/log.js",
+        "ui/icons.js",
+        "lib/ui.js",
+        "content.js"
+      ],
+      "run_at": "document_idle",
+      "all_frames": true,
+      "match_about_blank": true
+    }
+  ],
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  }
+}

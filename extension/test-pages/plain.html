@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Plain submit form</title>
+<style>body{font:15px system-ui;margin:24px;max-width:720px}label{display:block;margin:10px 0 2px}
+input,textarea,select{font:inherit;padding:5px;width:100%;max-width:520px}
+.row{display:flex;gap:8px} .hint{color:#6b7280;font-size:12px}
+.hp{position:absolute;left:-9999px} .chips .token{display:inline-block;background:#eef;border-radius:999px;padding:1px 8px;margin:2px}
+[role=listbox]{border:1px solid #ccc;max-height:160px;overflow:auto;background:#fff;position:relative;z-index:5}
+[role=option]{padding:4px 8px;cursor:pointer} [role=option]:hover{background:#eef}
+.ql-editor,.ProseMirror,.ck-editor__editable{border:1px solid #ccc;min-height:70px;padding:6px;background:#fff}
+.choices__list--dropdown{border:1px solid #ccc;background:#fff} .choices__item--choice{padding:4px 8px;cursor:pointer}
+.select2-container{display:inline-block} .select2-selection{border:1px solid #ccc;padding:4px 8px;cursor:pointer}
+.select2-results__option{padding:4px 8px;cursor:pointer}</style>
+</head><body>
+<h1>Plain submit form</h1>
+<p class="hint">普通输入、下拉、标签、问答、同意条款不自动勾。</p>
+
+<form id="f">
+<label for="name">Product name *</label><input id="name" name="name" required>
+<label for="url">Website URL *</label><input id="url" name="url" type="url" required>
+<label for="tagline">Tagline (max 60 characters)</label><input id="tagline" name="tagline" maxlength="60">
+<label for="description">Description</label><textarea id="description" name="description" maxlength="200"></textarea>
+<label for="category">Category</label><select id="category" name="category"><option value="">Choose one</option><option>Art</option><option>Hardware Testing</option><option>Utilities</option><option>Music</option></select>
+<label for="email">Contact email</label><input id="email" name="email" type="email">
+<label for="tags">Keywords or tags</label><input id="tags" name="tags">
+<label for="agree"><input id="agree" type="checkbox" style="width:auto"> I agree to the terms</label>
+<label for="hear">How did you hear about us?</label><input id="hear" name="hear">
+<button type="submit">Submit</button>
+</form><script type="application/json" id="fixture-expect">{"fields":{"#name":"name","#url":"url","#tagline":"tagline","#description":"description","#category":"category","#email":"email","#tags":"tags","#hear":"how_did_you_hear"},"checkboxNever":["#agree"]}</script>
+</body></html>

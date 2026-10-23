@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Rich text editors</title>
+<style>body{font:15px system-ui;margin:24px;max-width:720px}label{display:block;margin:10px 0 2px}
+input,textarea,select{font:inherit;padding:5px;width:100%;max-width:520px}
+.row{display:flex;gap:8px} .hint{color:#6b7280;font-size:12px}
+.hp{position:absolute;left:-9999px} .chips .token{display:inline-block;background:#eef;border-radius:999px;padding:1px 8px;margin:2px}
+[role=listbox]{border:1px solid #ccc;max-height:160px;overflow:auto;background:#fff;position:relative;z-index:5}
+[role=option]{padding:4px 8px;cursor:pointer} [role=option]:hover{background:#eef}
+.ql-editor,.ProseMirror,.ck-editor__editable{border:1px solid #ccc;min-height:70px;padding:6px;background:#fff}
+.choices__list--dropdown{border:1px solid #ccc;background:#fff} .choices__item--choice{padding:4px 8px;cursor:pointer}
+.select2-container{display:inline-block} .select2-selection{border:1px solid #ccc;padding:4px 8px;cursor:pointer}
+.select2-results__option{padding:4px 8px;cursor:pointer}</style>
+</head><body>
+<h1>Rich text editors</h1>
+<p class="hint">富文本：input 事件把内容同步到隐藏字段便于断言。</p>
+
+<label>Description (Quill style)</label>
+<div class="ql-container"><div class="ql-editor" id="quill" contenteditable="true"></div></div>
+<textarea id="quill-value" hidden></textarea>
+<label>Why did you build this? (ProseMirror style)</label>
+<div class="ProseMirror" id="prosemirror" contenteditable="true"></div>
+<textarea id="pm-value" hidden></textarea>
+<label for="name">Product name</label><input id="name"><script>
+for (const [id, mirror] of [['quill','quill-value'],['prosemirror','pm-value']]) {
+  const node = document.getElementById(id);
+  node.addEventListener('input', () => {document.getElementById(mirror).value = node.textContent.trim();});
+}
+</script>
+<script type="application/json" id="fixture-expect">{"fields":{"#name":"name"},"richText":{"#quill":"description","#prosemirror":"maker_story"}}</script>
+</body></html>

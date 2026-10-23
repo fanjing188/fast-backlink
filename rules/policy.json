@@ -1,0 +1,53 @@
+{
+  "dr_min": 10,
+  "dr_days": 30,
+  "blocked_days": 30,
+  "handoff_days": 14,
+  "match_threshold": 0.8,
+  "daily_outreach": 10,
+  "verify_days": {
+    "public": 28,
+    "alive": 28,
+    "live": 28,
+    "comment": 1,
+    "form": 1,
+    "contact": 1,
+    "default": 7
+  },
+  "scenarios": {
+    "directory": "preapproved",
+    "launch": "preapproved",
+    "roundup": "outreach",
+    "resource": "outreach",
+    "community": "approval",
+    "comment": "approval",
+    "producthunt": "approval",
+    "github": "forbidden",
+    "paid": "forbidden"
+  },
+  "stop_codes": [
+    "no_key",
+    "auth",
+    "rate_limit",
+    "quota"
+  ],
+  "queue_exclude": [
+    "submitted",
+    "unknown",
+    "public",
+    "alive",
+    "live",
+    "pending",
+    "removed"
+  ],
+  "handoff_statuses": [
+    "待处理",
+    "续填中",
+    "待人工",
+    "待核实",
+    "已跳过",
+    "需重新备料",
+    "结果未知",
+    "待授权"
+  ]
+}

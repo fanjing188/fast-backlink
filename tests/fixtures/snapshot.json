@@ -1,0 +1,59 @@
+{
+  "binding": {
+    "taskId": "fixture",
+    "documentId": "doc",
+    "leaseId": "lease"
+  },
+  "snapshotId": "s1",
+  "text": "Garden directory with free submission. No backlink required.",
+  "items": [
+    {
+      "ref": "a",
+      "role": "textbox",
+      "name": "Product name"
+    },
+    {
+      "ref": "b",
+      "role": "textbox",
+      "name": "Website URL"
+    },
+    {
+      "ref": "c",
+      "role": "textbox",
+      "name": "Short description",
+      "maxlength": 160
+    },
+    {
+      "ref": "d",
+      "role": "combobox",
+      "name": "Category",
+      "options": [
+        {
+          "text": "Hardware Testing"
+        },
+        {
+          "text": "Finance"
+        }
+      ]
+    },
+    {
+      "ref": "e",
+      "role": "textbox",
+      "name": "Password",
+      "inputType": "password"
+    },
+    {
+      "ref": "f",
+      "role": "textbox",
+      "name": "Verification code",
+      "fieldKind": "otp"
+    },
+    {
+      "ref": "g",
+      "role": "textbox",
+      "name": "Logo",
+      "inputType": "file",
+      "selector": "#logo"
+    }
+  ]
+}

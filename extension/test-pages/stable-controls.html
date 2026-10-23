@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Stable submission controls — synthetic fixture</title>
+<style>body{font:16px/1.6 system-ui;margin:24px;max-width:720px}label{display:block;margin-top:16px}input,button{font:inherit;padding:10px;max-width:100%;box-sizing:border-box}input{width:100%}[role=option]{padding:8px;cursor:pointer}[role=listbox]{border:1px solid #aaa;padding:8px}small{color:#555}</style></head><body>
+<h1>Submission controls</h1><small>Local synthetic fixture. No external submission.</small>
+<form id="form"><div class="ff-el-group"><div class="ff-el-input--label">Product name</div><input id="product"></div>
+<div class="forminator-field"><div class="forminator-label">Website URL</div><input id="website"></div>
+<label id="category-label">Category</label><div id="control"></div><input type="hidden" id="business">
+<button type="submit">Submit product</button></form>
+<div role="listbox" id="unrelated"><div role="option" onclick="window.wrongClicks++">Utilities</div></div>
+<script>
+window.wrongClicks=0;window.submitCount=0;window.enterCount=0;
+form.onsubmit=e=>{e.preventDefault();window.submitCount++};
+document.addEventListener('keydown',e=>{if(e.key==='Enter')window.enterCount++});
+const mode=new URLSearchParams(location.search).get('mode')||'button';
+if(mode==='rollback')product.addEventListener('input',()=>setTimeout(()=>{product.value=''},40));
+const combo=document.createElement(mode==='button'?'button':'input');
+combo.id='category';combo.setAttribute('role','combobox');combo.setAttribute('aria-labelledby','category-label');combo.setAttribute('aria-controls','mine');
+if(mode==='button'){combo.type='button';combo.textContent='Choose category';combo.setAttribute('data-placeholder','')}
+control.append(combo);
+combo.onclick=()=>{
+  if(document.getElementById('mine'))return;
+  setTimeout(()=>{
+    const menu=document.createElement('div');menu.id='mine';menu.role='listbox';
+    const option=document.createElement('div');option.role='option';option.textContent='Utilities';
+    option.onclick=()=>{
+      if(mode==='broken'){combo.value='Utilities';return}
+      business.value='Utilities';combo.textContent='Utilities';combo.removeAttribute('data-placeholder');menu.remove();
+    };
+    menu.append(option);document.body.append(menu);
+  },120);
+};
+</script>
+<script type="application/json" id="fixture-expect">{"fields":{"#product":"name","#website":"url"}}</script>
+</body></html>

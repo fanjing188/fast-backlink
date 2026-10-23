@@ -1,0 +1,214 @@
+{
+  "scenarios": {
+    "github": [
+      "github.com",
+      "awesome list",
+      "readme"
+    ],
+    "producthunt": [
+      "producthunt.com",
+      "product hunt"
+    ],
+    "comment": [
+      "leave a comment",
+      "post comment",
+      "评论"
+    ],
+    "community": [
+      "reddit.com",
+      "forum",
+      "community post",
+      "论坛"
+    ],
+    "launch": [
+      "devhunt",
+      "peerlist",
+      "betalist",
+      "microlaunch",
+      "open-launch",
+      "launch your",
+      "launch platform"
+    ],
+    "roundup": [
+      "best tools",
+      "roundup",
+      "top tools"
+    ],
+    "resource": [
+      "resource list",
+      "resources",
+      "resource page"
+    ],
+    "directory": [
+      "directory",
+      "submit your tool",
+      "list your product",
+      "目录"
+    ]
+  },
+  "signals": {
+    "paid": [
+      "submission fee",
+      "pay to submit",
+      "paid submission",
+      "paid acceleration required",
+      "提交费",
+      "付费加速门槛",
+      "(?:listings?|submissions?).{0,25}(?:start(?:s|ing)? (?:at|from)).{0,10}\\$\\d+",
+      "only completed paid listings"
+    ],
+    "free": [
+      "free submission",
+      "submit (?:for free|free)",
+      "no submission fee",
+      "免费提交",
+      "free listing",
+      "free basic listing",
+      "list (?:your [a-z]+ )?for free",
+      "free to (?:list|submit)"
+    ],
+    "login": [
+      "log ?in",
+      "sign ?in",
+      "登录"
+    ],
+    "captcha": [
+      "captcha",
+      "turnstile",
+      "verify (?:that )?you are human",
+      "human verification",
+      "人机验证",
+      "风控"
+    ],
+    "backlink_required": [
+      "backlink (?:is )?required",
+      "must link back",
+      "reciprocal link required",
+      "强制回链",
+      "(?:must|required to).{0,40}(?:display|install|add).{0,30}(?:badge|backlink)",
+      "badge required",
+      "free.{0,40}require.{0,40}badge"
+    ],
+    "no_backlink": [
+      "no (?:backlink|reciprocal link) required",
+      "无需回链"
+    ],
+    "upload_verify": [
+      "verify ownership",
+      "domain verification",
+      "upload.*verification",
+      "站点所有权验证"
+    ],
+    "email_verify": [
+      "email verification code",
+      "one.time (?:code|password)",
+      "邮件验证码",
+      "sms code",
+      "phone verification",
+      "手机号验证"
+    ],
+    "license_risk": [
+      "irrevocable.{0,100}(?:licen[sc]e|rights)",
+      "waiv(?:e|er|ing).{0,50}claims",
+      "不可撤销",
+      "放弃索赔"
+    ],
+    "js": [
+      "enable javascript",
+      "javascript (?:is )?required",
+      "checking your browser",
+      "access denied"
+    ],
+    "contact": [
+      "[\\w.+-]+@[\\w.-]+\\.[a-z]{2,}",
+      "contact (?:us|form)",
+      "联系表单"
+    ],
+    "js_shell": [
+      "<(?:div|main)[^>]+id=[\\\"\\x27](?:root|app|__next)[\\\"\\x27][^>]*>\\s*</(?:div|main)>"
+    ],
+    "automation_forbidden": [
+      "using automated tools to (?:scrape|harvest)",
+      "(?:prohibit|forbid|not (?:allowed|permitted)|may not|must not).{0,80}(?:automat|scrap)",
+      "automated.{0,40}(?:prohibited|forbidden)",
+      "automated/non-human",
+      "禁[止用].{0,20}自动"
+    ]
+  },
+  "sensitive": {
+    "password": [
+      "password",
+      "密码",
+      "current-password",
+      "new-password"
+    ],
+    "captcha": [
+      "captcha",
+      "验证码",
+      "verification code",
+      "one-time-code",
+      "otp",
+      "turnstile",
+      "one-time password",
+      "one time code",
+      "one-time code",
+      "one time password"
+    ],
+    "payment": [
+      "credit card",
+      "card number",
+      "银行卡",
+      "payment",
+      "cc-number",
+      "cc-exp",
+      "cc-csc",
+      "cc-name",
+      "cvc",
+      "cvv",
+      "security code",
+      "expiry",
+      "expiration date",
+      "有效期",
+      "安全码"
+    ],
+    "phone": [
+      "phone verification",
+      "手机号",
+      "sms code"
+    ],
+    "ownership": [
+      "verify ownership",
+      "domain verification",
+      "所有权验证"
+    ]
+  },
+  "fit": {
+    "raumlens": [
+      "landscape",
+      "garden",
+      "yard",
+      "home & garden",
+      "ai image",
+      "design"
+    ],
+    "probekits": [
+      "hardware",
+      "diagnostic",
+      "utilities",
+      "browser tools",
+      "gamepad"
+    ],
+    "lessonprism": [
+      "education",
+      "teaching",
+      "stem",
+      "lesson"
+    ],
+    "gematria": [
+      "gematria",
+      "calculator",
+      "reference",
+      "research tools"
+    ]
+  }
+}

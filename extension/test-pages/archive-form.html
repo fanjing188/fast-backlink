@@ -1,0 +1,11 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Archived verification form — synthetic fixture</title>
+<style>body{font:16px/1.6 system-ui;margin:24px;max-width:720px}label{display:block;margin:16px 0 4px}input,textarea,button{font:inherit;padding:8px;box-sizing:border-box;max-width:100%}input,textarea{width:100%}textarea{height:100px}</style></head><body>
+<h1>Product submission</h1><p>Local synthetic fixture. Submission stays on this page.</p>
+<form id="form"><label for="name">Product name</label><input id="name" required>
+<label for="url">Website URL</label><input id="url" type="url" required>
+<label for="description">Description</label><textarea id="description" maxlength="500" required></textarea>
+<label for="captcha">CAPTCHA verification code</label><input id="captcha" name="captcha" required>
+<button type="submit">Submit product</button><p id="result" role="status"></p></form>
+<script>window.submits=0;form.onsubmit=e=>{e.preventDefault();window.submits++;result.textContent='Synthetic receipt: received'}</script>
+<script type="application/json" id="fixture-expect">{"fields":{"#name":"name","#url":"url","#description":"description"}}</script>
+</body></html>

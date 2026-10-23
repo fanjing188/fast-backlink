@@ -1,0 +1,9 @@
+<!doctype html><html><head>
+    <meta name="viewport" content="width=device-width, initial-scale=1"><title>合成投稿表单</title></head><body>
+    <h1>合成投稿表单，不是外部平台</h1><form id="submission">
+    <label>Product name<input id="product-name" name="name" required></label>
+    <label>Website URL<input id="product-url" name="url" type="url" required></label>
+    <label>Verification code<input id="verification" autocomplete="one-time-code"></label>
+    <button type="submit">Submit listing</button></form>
+    <script>document.querySelector('form').addEventListener('submit', event => {event.preventDefault();
+    document.body.dataset.submissions = String(Number(document.body.dataset.submissions || 0) + 1);});</script></body></html>

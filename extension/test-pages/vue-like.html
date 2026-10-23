@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Vue-like v-model form</title>
+<style>body{font:15px system-ui;margin:24px;max-width:720px}label{display:block;margin:10px 0 2px}
+input,textarea,select{font:inherit;padding:5px;width:100%;max-width:520px}
+.row{display:flex;gap:8px} .hint{color:#6b7280;font-size:12px}
+.hp{position:absolute;left:-9999px} .chips .token{display:inline-block;background:#eef;border-radius:999px;padding:1px 8px;margin:2px}
+[role=listbox]{border:1px solid #ccc;max-height:160px;overflow:auto;background:#fff;position:relative;z-index:5}
+[role=option]{padding:4px 8px;cursor:pointer} [role=option]:hover{background:#eef}
+.ql-editor,.ProseMirror,.ck-editor__editable{border:1px solid #ccc;min-height:70px;padding:6px;background:#fff}
+.choices__list--dropdown{border:1px solid #ccc;background:#fff} .choices__item--choice{padding:4px 8px;cursor:pointer}
+.select2-container{display:inline-block} .select2-selection{border:1px solid #ccc;padding:4px 8px;cursor:pointer}
+.select2-results__option{padding:4px 8px;cursor:pointer}</style>
+</head><body>
+<h1>Vue-like v-model form</h1>
+<p class="hint">v-model 风格：监听 input 同步回显。</p>
+
+<div id="app"></div><script>
+const model = {product: '', site: '', pitch: ''};
+const app = document.getElementById('app');
+function draw() {
+  app.innerHTML = `
+    <label for="product">产品名</label><input id="product">
+    <label for="site">官网地址</label><input id="site">
+    <label for="pitch">一句话介绍</label><input id="pitch">
+    <div id="mirror"></div>`;
+  for (const key of ['product','site','pitch']) {
+    const node = document.getElementById(key);
+    node.value = model[key];
+    node.addEventListener('input', event => {model[key] = event.target.value; document.getElementById('mirror').textContent = JSON.stringify(model);});
+  }
+}
+draw();
+</script>
+<script type="application/json" id="fixture-expect">{"fields":{"#product":"name","#site":"url","#pitch":"tagline"}}</script>
+</body></html>

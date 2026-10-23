@@ -1,0 +1,33 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>同页填表离线测试</title>
+<style>body{font:16px system-ui;max-width:700px;margin:32px auto;padding-bottom:60vh}label{display:block;margin:18px 0}input,select,textarea,[contenteditable]{padding:8px;border:1px solid #999}fieldset{margin:20px 0}</style>
+<h1>本地同页填表测试</h1><p>仅验收使用；此页面不会向外部提交。由验收方使用本地静态 HTTP 服务打开本页，再点击扩展图标选择目标站。</p>
+<form id="form">
+<div id="step1">
+<label>Product name <input name="product"></label>
+<label for="email">E-mail Address</label><input id="email" type="email">
+<label>Website URL <input type="url"></label>
+<label>Short description <textarea maxlength="160"></textarea></label>
+<label>Topics <select id="topics"><option value="">请选择</option><option>Computing</option><option>Other</option></select></label>
+<label>Categories <select id="categories"><option value="">先选 Topics</option></select></label>
+<label>Logo <input type="file" accept="image/*"></label>
+<label>验证码 <input id="captcha" autocomplete="one-time-code"></label>
+<label>Secret <input id="password" type="password"></label>
+<label>Card number <input autocomplete="cc-number"></label>
+<label>受控输入 Product name <input id="controlled"></label><p id="controlled-state">尚未触发 input</p>
+<button type="button" id="next">下一步（人工点）</button></div>
+<div id="step2" hidden>
+<p id="rich-label">Description</p><div contenteditable="true" aria-labelledby="rich-label"></div>
+<fieldset><legend>Pricing</legend><label><input type="radio" name="pricing">Free</label><label><input type="radio" name="pricing">Freemium</label></fieldset>
+<label><input type="checkbox">我接受条款（必须人工处理）</label>
+<label>Unknown required field <input required></label>
+<button type="submit">模拟提交（人工点）</button></div>
+</form><p id="receipt" role="status"></p>
+<script>
+const topic=document.querySelector('#topics'), category=document.querySelector('#categories');
+topic.addEventListener('change',()=>setTimeout(()=>{category.replaceChildren();for(const text of ['请选择','Hardware','Education']){const o=document.createElement('option');o.textContent=text;o.value=text==='请选择'?'':text;category.append(o);}},300));
+const controlled=document.querySelector('#controlled'),native=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value');let state='';
+Object.defineProperty(controlled,'value',{get(){return native.get.call(this);},set(value){native.set.call(this,state);}});
+controlled.addEventListener('input',()=>{state=native.get.call(controlled);document.querySelector('#controlled-state').textContent='受控状态：'+state;});
+document.querySelector('#next').onclick=()=>{document.querySelector('#step1').hidden=true;document.querySelector('#step2').hidden=false;};
+document.querySelector('#form').onsubmit=event=>{event.preventDefault();document.querySelector('#receipt').textContent='模拟回执：请点扩展“我已提交”，然后回列表查看待核实';};
+</script></html>

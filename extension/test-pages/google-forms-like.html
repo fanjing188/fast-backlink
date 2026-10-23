@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Google Forms style</title>
+<style>body{font:15px system-ui;margin:24px;max-width:720px}label{display:block;margin:10px 0 2px}
+input,textarea,select{font:inherit;padding:5px;width:100%;max-width:520px}
+.row{display:flex;gap:8px} .hint{color:#6b7280;font-size:12px}
+.hp{position:absolute;left:-9999px} .chips .token{display:inline-block;background:#eef;border-radius:999px;padding:1px 8px;margin:2px}
+[role=listbox]{border:1px solid #ccc;max-height:160px;overflow:auto;background:#fff;position:relative;z-index:5}
+[role=option]{padding:4px 8px;cursor:pointer} [role=option]:hover{background:#eef}
+.ql-editor,.ProseMirror,.ck-editor__editable{border:1px solid #ccc;min-height:70px;padding:6px;background:#fff}
+.choices__list--dropdown{border:1px solid #ccc;background:#fff} .choices__item--choice{padding:4px 8px;cursor:pointer}
+.select2-container{display:inline-block} .select2-selection{border:1px solid #ccc;padding:4px 8px;cursor:pointer}
+.select2-results__option{padding:4px 8px;cursor:pointer}</style>
+</head><body>
+<h1>Google Forms style</h1>
+<p class="hint">托管表单：题目在 role=heading 里，标签文字是 Untitled question。</p>
+
+<div class="freebirdFormviewerViewFormContent">
+  <form>
+    <div role="listitem"><div role="heading">Product name</div><input name="entry.111" id="gname"></div>
+    <div role="listitem"><div role="heading">Website URL</div><input name="entry.222" id="gurl" type="url"></div>
+    <div role="listitem"><div role="heading">Short description</div><input name="entry.333" id="gdesc" maxlength="160"></div>
+    <div role="listitem"><div role="heading">How did you hear about us</div><input name="entry.444" id="ghear"></div>
+  </form>
+</div><script>
+for (const box of document.querySelectorAll('[role=listitem]')) {
+  box.setAttribute('data-item-id', box.querySelector('[role=heading]').textContent.trim());
+  box.querySelector('[role=heading]').setAttribute('aria-label', 'Untitled question');
+}
+</script>
+<script type="application/json" id="fixture-expect">{"fields":{"#gname":"name","#gurl":"url","#gdesc":"short_description","#ghear":"how_did_you_hear"},"platform":"google-forms"}</script>
+</body></html>

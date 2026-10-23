@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Captcha form</title>
+<style>body{font:15px system-ui;margin:24px;max-width:720px}label{display:block;margin:10px 0 2px}
+input,textarea,select{font:inherit;padding:5px;width:100%;max-width:520px}
+.row{display:flex;gap:8px} .hint{color:#6b7280;font-size:12px}
+.hp{position:absolute;left:-9999px} .chips .token{display:inline-block;background:#eef;border-radius:999px;padding:1px 8px;margin:2px}
+[role=listbox]{border:1px solid #ccc;max-height:160px;overflow:auto;background:#fff;position:relative;z-index:5}
+[role=option]{padding:4px 8px;cursor:pointer} [role=option]:hover{background:#eef}
+.ql-editor,.ProseMirror,.ck-editor__editable{border:1px solid #ccc;min-height:70px;padding:6px;background:#fff}
+.choices__list--dropdown{border:1px solid #ccc;background:#fff} .choices__item--choice{padding:4px 8px;cursor:pointer}
+.select2-container{display:inline-block} .select2-selection{border:1px solid #ccc;padding:4px 8px;cursor:pointer}
+.select2-results__option{padding:4px 8px;cursor:pointer}</style>
+</head><body>
+<h1>Captcha form</h1>
+<p class="hint">验证码：图片码、reCAPTCHA iframe、算术题都要交人。</p>
+
+<form id="f">
+<label for="name">Product name</label><input id="name">
+<label for="code">Verification code *</label>
+<div class="row"><img alt="captcha image" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" width="60" height="24"><input id="code" name="code" required></div>
+<div class="g-recaptcha"><iframe src="https://www.google.com/recaptcha/api2/anchor" title="reCAPTCHA" width="120" height="40"></iframe></div>
+<label for="sum">What is 3 + 4?</label><input id="sum" name="sum">
+</form><script type="application/json" id="fixture-expect">{"fields":{"#name":"name"},"captcha":["#code","#sum"]}</script>
+</body></html>
