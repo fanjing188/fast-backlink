@@ -75,6 +75,7 @@ shutil.copyfile(json.loads(pathlib.Path(os.environ['SETUP_RESPONSES']).read_text
         result = self.run_setup()
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn('安装完成', result.stdout)
+        self.assertEqual(json.loads((self.prefix / '.installation.json').read_text())['ref'], 'v1.0.2')
         previous = (self.prefix / 'current').resolve()
         config = self.prefix / 'config.json'
         before = config.read_bytes()

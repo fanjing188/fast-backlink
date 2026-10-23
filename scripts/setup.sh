@@ -130,7 +130,11 @@ PY
 fi
 
 printf '%s\n' '正在安装程序，保留已有产品资料和配置…'
-if ! "$PYTHON_BIN" "$SOURCE/tools/manage_install.py" install --source "$SOURCE" --prefix "$PREFIX" --bin-dir "$BIN_DIR" --repo "$REPO.git" --ref main >"$TEMP/install.log" 2>&1; then
+REF=${VERSION:-main}
+if [ -z "$VERSION" ] && [ -f "$SOURCE/SOURCE-MANIFEST.json" ]; then
+  REF=$("$PYTHON_BIN" -c 'import json,sys; m=json.load(open(sys.argv[1])); print("v"+m["version"] if m.get("status")=="RELEASE_SOURCE" else "main")' "$SOURCE/SOURCE-MANIFEST.json")
+fi
+if ! "$PYTHON_BIN" "$SOURCE/tools/manage_install.py" install --source "$SOURCE" --prefix "$PREFIX" --bin-dir "$BIN_DIR" --repo "$REPO.git" --ref "$REF" >"$TEMP/install.log" 2>&1; then
   cat "$TEMP/install.log" >&2
   fail '安装未完成；已有服务运行时，请先在其终端按 Ctrl+C 后重试。'
 fi
