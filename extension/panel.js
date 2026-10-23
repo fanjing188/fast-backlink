@@ -23,7 +23,7 @@ const STATUS_LABEL = {filled: '已填', pending: '待确认', confirm: '待确�
   captcha: '验证码', sensitive: '敏感', honeypot: '蜜罐', skipped: '跳过', failed: '失败'};
 const state = {info: null, settings: {}, kit: null, sites: [], snapshots: [], target: null, view: 'form',
   filter: 'all', search: '', loading: true, lastError: null, snapshotError: null, aiLoading: false,
-  tasksSite: '', verificationOnly: false, archiving: false, projectChanging: false};
+  tasksSite: '', verificationOnly: false, archiving: false, projectChanging: false, auth: null};
 let refreshGeneration = 0, projectSelection = 0;
 
 // ---------- 基础 UI ----------
@@ -81,9 +81,13 @@ async function currentTab() {
 
 async function refresh({render = true} = {}) {
   const generation = ++refreshGeneration;
-  const tab = await currentTab();
-  let info = null, errorMessage = null;
+  let tab = await currentTab();
+  let info = null, auth = null, errorMessage = null;
   try {
+    auth = tab ? await send('auth:status', {tabId: tab.id}).catch(() => null) : null;
+    if (auth?.task && auth.task.rootId !== tab?.id) {
+      tab = await chrome.tabs.get(auth.task.rootId).catch(() => tab);
+    }
     info = await send('panel:state', {tabId: tab?.id});
   } catch (error) {
     errorMessage = error.message;
@@ -91,6 +95,7 @@ async function refresh({render = true} = {}) {
   const sites = state.sites.length ? state.sites : await send('sites').catch(() => []);
   if (generation !== refreshGeneration || state.projectChanging) return;
   state.tab = tab;
+  state.auth = auth;
   state.info = info;
   if (info) state.settings = info.settings || {};
   state.lastError = errorMessage;
@@ -178,7 +183,7 @@ function formToolbar() {
   }
   return el('div', {class: 'panel-head form-toolbar'},
     el('div', {class: 'search grow'}, icon('search'), search), seg,
-    el('button', {class: 'icon ghost', title: 'AI 直接填写空字段，无需二次确认', 'aria-label': 'AI 兜底', onclick: requestAi}, icon('wand')),
+    el('button', {class: 'icon ghost', title: 'AI 智能填充：直接补填安全空字段，无需二次确认', 'aria-label': 'AI 智能填充', onclick: requestAi}, icon('wand')),
     el('button', {class: 'icon ghost', title: '重新扫描并填写', 'aria-label': '重新扫描并填写', onclick: async () => {
       try {
         await send('panel:command', {command: 'page:fill', tabId: state.tab?.id});
@@ -194,7 +199,7 @@ function aiCard(info) {
     return banner('warn', 'AI 正在分析剩余字段，通常几秒内完成…');
   }
   if (ai.error) {
-    return banner('warn', `AI 兜底：${ai.error}`,
+    return banner('warn', `AI 智能填充：${ai.error}`,
       el('button', {class: 'sm', onclick: requestAi}, text('重试')),
       el('button', {class: 'sm ghost', onclick: () => switchView('settings')}, text('设置')));
   }
@@ -245,7 +250,7 @@ async function requestAi() {
     await refresh();
     const ai = state.info?.ai;
     if (!ai) toast('AI 未返回结果，先在页面上选一个目标项目', 'warn');
-    else if (ai.enabled === false) toast('AI 未启用：在 config.json 打开 ai.enabled', 'warn');
+    else if (ai.enabled === false) {toast('AI 未启用，请在设置中配置并开启 AI 智能填充', 'warn'); switchView('settings');}
     else if (ai.error) toast(ai.error, 'err');
     else {
       const open = (ai.suggestions || []).filter(item => item.key && !item.applied && !item.reason).length;
@@ -293,10 +298,21 @@ async function dismissAi() {
 
 function renderForm() {
   const panel = $('[data-panel=form]');
+  const info = state.info;
+  const loginBlocked = ['login', 'google', 'manual'].includes(state.auth?.kind) ||
+    (state.auth?.task && state.auth.task.state !== 'complete');
+  for (const button of document.querySelectorAll('footer [data-command]')) {
+    button.disabled = !!(loginBlocked || !info?.base || !info?.site || !state.tab || state.projectChanging);
+  }
+  const authBinding = JSON.stringify([state.tab?.id, state.tab?.url, info?.site,
+    state.auth?.authorized, state.auth?.kind, state.auth?.task?.state]);
+  const previousLogin = panel.querySelector('#auth-card');
+  // 同页输入时不打断草稿；换页面、项目或登录阶段必须重建授权范围。
+  if (previousLogin?.dataset.binding === authBinding && previousLogin.contains(document.activeElement) &&
+      document.activeElement.tagName === 'INPUT') return;
   const toolbar = panel.querySelector('.form-toolbar');
   const focused = toolbar?.contains(document.activeElement) ? document.activeElement : null;
   panel.replaceChildren();
-  const info = state.info;
   if (state.loading && !info) return void panel.append(skeleton(5));
   if (state.lastError) {
     panel.append(banner('err', state.lastError,
@@ -320,6 +336,9 @@ function renderForm() {
       body: '用上方的项目下拉选一个项目，当前页面会立刻开始填；也可以从续填列表点“开始”进入。'}));
     return;
   }
+  const login = BKAuthPanel.card({auth: state.auth, tab: state.tab, send, refresh, toast, el, text});
+  if (login) {login.dataset.binding = authBinding; panel.append(login);}
+  if (loginBlocked) return;
   const controls = toolbar || formToolbar();
   for (const button of controls.querySelectorAll('[data-filter]')) {
     button.setAttribute('aria-pressed', String(button.dataset.filter === state.filter));
@@ -581,7 +600,7 @@ async function renderLogs() {
   const level = el('select', {style: 'width:auto', 'aria-label': '级别'},
     ...['', 'debug', 'info', 'warn', 'error'].map(value => el('option', {value}, text(value || '全部级别'))));
   const category = el('select', {style: 'width:auto', 'aria-label': '类别'},
-    ...[['', '全部类别'], ['fill', '填写'], ['match', '匹配'], ['ai', 'AI 兜底'], ['verify', '回读'], ['snapshot', '快照'],
+    ...[['', '全部类别'], ['fill', '填写'], ['match', '匹配'], ['ai', 'AI 智能填充'], ['verify', '回读'], ['snapshot', '快照'],
       ['restore', '复原'], ['captcha', '验证码'], ['auto-next', '自动下一步'], ['error', '错误'], ['perf', '汇总'],
       ['upload', '上传'], ['user', '人工']]
       .map(([value, label]) => el('option', {value}, text(label))));
@@ -679,24 +698,28 @@ async function finish(item, action) {
 // ---------- 设置 ----------
 
 const SETTING_ROWS = [
+  ['floating_window', '网站快捷悬浮窗', '开启显示网页底部快捷条；关闭后隐藏，侧栏与快捷键仍可使用'],
   ['restore_after_reload', '刷新后自动复原', '页面清空或重开时，2 小时内的快照自动填回'],
 
   ['auto_next', '多步表单自动点下一步', '只在填好且回读一致时点；永不点提交类按钮'],
   ['fill_low_confidence', '低置信度也自动填', '0.5–0.85 的匹配照填，但标黄待确认'],
-  ['ai_fallback', 'AI 兜底', '本机配置了标准 AI 接口时，填完后给残余字段提建议'],
+  ['ai_fallback', '填写后自动使用 AI', '启用并配置 AI 智能填充后，自动分析剩余的安全空字段'],
   ['inline_asset_button', '字段内素材按钮', '聚焦输入框时右侧出现 ⚡，打开候选'],
 ];
 
 function renderSettings() {
   const panel = $('[data-panel=settings]');
-  panel.replaceChildren();
+  // AI 表单留在原位保留草稿和焦点，其余设置按当前标签页重新读取。
+  const existing = panel.querySelector('#ai-config');
+  if (existing) existing.refreshStatus(state.info?.aiStatus);
+  for (const child of [...panel.children]) if (child !== existing) child.remove();
   if (state.info && !state.info.base) {
     panel.append(banner('warn', '还没连接本机服务。',
       el('button', {class: 'sm', onclick: () => chrome.runtime.openOptionsPage()}, text('打开设置'))));
   }
   const behaviors = el('div', {class: 'settings-group'}, el('h3', {}, text('填写行为')));
   for (const [key, label, hint] of SETTING_ROWS) {
-    const input = el('input', {type: 'checkbox', class: 'smooth-switch'});
+    const input = el('input', {type: 'checkbox', class: 'smooth-switch', 'aria-label': label});
     input.checked = state.settings[key] !== false;
     input.addEventListener('change', () => saveSetting({[key]: input.checked}, input));
     behaviors.append(el('label', {class: 'switch bk-switch'},
@@ -704,16 +727,8 @@ function renderSettings() {
   }
   panel.append(behaviors);
 
-  const ai = state.info?.aiStatus;
-  const aiText = !ai ? '未知（本机服务或 AI 状态不可用）'
-    : !ai.enabled ? '已关闭（config.json 的 ai.enabled）'
-    : !ai.configured ? '已启用，但缺少 base_url、model 或密钥'
-    : `已启用 · ${ai.model}${ai.has_key ? '' : ' · 本机无鉴权'}`;
-  panel.append(el('div', {class: 'settings-group'}, el('h3', {}, text('AI 兜底')),
-    el('div', {class: 'pad stack tight'},
-      el('div', {class: 'muted'}, text(aiText)),
-      el('div', {class: 'muted'}, text('接口和密钥在 config.json 的 ai 段；改完重启本机服务，再点“重新读取”。')),
-      el('div', {class: 'row'}, el('button', {class: 'sm', onclick: () => refresh()}, text('重新读取'))))));
+  if (!existing) panel.prepend(BKAISettings.create({el, text, send, status: state.info?.aiStatus,
+    onSaved: status => {if (state.info) state.info.aiStatus = status;}}));
 
   const source = state.info?.source;
   if (source) {

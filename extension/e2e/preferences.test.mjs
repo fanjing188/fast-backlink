@@ -34,7 +34,7 @@ test('已打开页面也沿用后来保存的项目，AI一次点击即填写，
   await panel.waitForFunction(() => document.querySelector('#toasts').textContent.includes('已保存默认项目'));
   await page.bringToFront();
   await panel.waitForFunction(url => state.tab?.url === url, page.url());
-  await panel.getByRole('button', {name: 'AI 兜底', exact: true}).click();
+  await panel.getByRole('button', {name: 'AI 智能填充', exact: true}).click();
   await panel.waitForFunction(() => !state.aiLoading);
   await page.waitForFunction(() => document.querySelector('#site').value !== '' && document.querySelector('#pitch').value !== '', null, {timeout: 15000});
   assert.equal(await value(page, '#site'), EXPECTED.url);
@@ -50,7 +50,7 @@ test('AI直接填写保留人工输入，提交锁生效后不请求AI也不重�
   const {page} = await openFixture(context, 'ai-fallback.html', {query: '?manual-preserved=1'});
   await page.fill('#site', 'https://manual.example/');
   const panel = await panelFor(page);
-  await panel.getByRole('button', {name: 'AI 兜底', exact: true}).click();
+  await panel.getByRole('button', {name: 'AI 智能填充', exact: true}).click();
   await panel.waitForFunction(() => !state.aiLoading);
   await page.waitForFunction(() => document.querySelector('#pitch').value !== '');
   assert.equal(await value(page, '#site'), 'https://manual.example/');
@@ -88,7 +88,7 @@ test('AI等待期间重挂载或变成密码框的字段保持空白，不按旧
     };
     await context.route(endpoint, hold);
     try {
-      await panel.getByRole('button', {name: 'AI 兜底', exact: true}).click();
+      await panel.getByRole('button', {name: 'AI 智能填充', exact: true}).click();
       await started;
       await page.evaluate(mode => {
         const original = document.querySelector('#site');
@@ -129,7 +129,7 @@ test('AI控件点击后原位变成密码框时，适配器等待后也不得写
   await page.waitForFunction(() => JSON.parse(document.documentElement.dataset.bkStatus || '{}')
     .decisions?.some(item => item.index === 1 && item.widget === 'mui-autocomplete'));
   const panel = await panelFor(page);
-  await panel.getByRole('button', {name: 'AI 兜底', exact: true}).click();
+  await panel.getByRole('button', {name: 'AI 智能填充', exact: true}).click();
   await panel.waitForFunction(() => !state.aiLoading);
   assert.equal(await page.$eval('#site', input => input.type), 'password');
   assert.equal(await value(page, '#site'), '');
@@ -164,7 +164,7 @@ test('AI合法延迟下拉仍可选择，等待时的人工输入优先且不被
     await page.waitForFunction(() => JSON.parse(document.documentElement.dataset.bkStatus || '{}')
       .decisions?.some(item => item.index === 1 && item.widget === 'mui-autocomplete'));
     const panel = await panelFor(page);
-    await panel.getByRole('button', {name: 'AI 兜底', exact: true}).click();
+    await panel.getByRole('button', {name: 'AI 智能填充', exact: true}).click();
     if (mode === 'manual') {
       await page.waitForFunction(() => window.menuRequested);
       await page.fill('#site', 'https://manual.example/');
@@ -223,7 +223,7 @@ test('容器标签不能遮住动态敏感ARIA或完整名称，既不写也不�
     await page.waitForFunction(() => JSON.parse(document.documentElement.dataset.bkStatus || '{}')
       .decisions?.some(item => item.index === 1 && item.widget === 'mui-autocomplete'));
     const panel = await panelFor(page);
-    await panel.getByRole('button', {name: 'AI 兜底', exact: true}).click();
+    await panel.getByRole('button', {name: 'AI 智能填充', exact: true}).click();
     await panel.waitForFunction(() => !state.aiLoading);
     assert.deepEqual(await page.evaluate(() => window.sensitiveWrites), [], mode);
     assert.equal(await value(page, '#site'), 'synthetic-private-value');

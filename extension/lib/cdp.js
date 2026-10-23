@@ -157,18 +157,27 @@ export async function pressKey(tabId, selector, key) {
   });
 }
 
-export async function clickElement(tabId, selector) {
+export async function clickElement(tabId, selector, options = {}) {
   return withDebugger(tabId, async () => {
     const {objectId} = await nodeFor(tabId, selector);
     let box;
     try {
-      box = await call(tabId, objectId, `function(){
+      box = await call(tabId, objectId, `function(expected){
         this.scrollIntoView({block:'center'});
         const rect = this.getBoundingClientRect();
+        if (expected) {
+          const name = String(this.getAttribute('aria-label') || this.innerText || this.textContent || '').replace(/\\s+/g, ' ').trim();
+          const hit = this.ownerDocument.elementFromPoint(rect.left + rect.width/2, rect.top + rect.height/2);
+          if (location.href !== expected.url || document.documentElement.dataset.bkAuthReady !== expected.document ||
+              (expected.href && this.closest('a[href]')?.href !== expected.href) ||
+              name !== expected.label || this.disabled || this.getAttribute('aria-disabled') === 'true' ||
+              !hit || !(hit === this || this.contains(hit))) throw Error('AUTH_TARGET_CHANGED');
+        }
         return {x: rect.left + rect.width/2, y: rect.top + rect.height/2, width: rect.width, height: rect.height};
-      }`);
+      }`, [options.auth || null]);
     } finally { await send(tabId, 'Runtime.releaseObject', {objectId}).catch(() => {}); }
     if (!box || !box.width) throw Error('TARGET_ZERO_SIZE');
+    if (options.authorize && !await options.authorize()) throw Error('AUTH_CANCELLED');
     const point = {x: Math.round(box.x), y: Math.round(box.y), button: 'left', clickCount: 1};
     await send(tabId, 'Input.dispatchMouseEvent', {type: 'mousePressed', ...point});
     await send(tabId, 'Input.dispatchMouseEvent', {type: 'mouseReleased', ...point});

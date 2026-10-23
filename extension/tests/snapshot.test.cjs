@@ -122,3 +122,17 @@ test('文件快照保存稳定素材ID与内容摘要，不保存会重排的数
   assert.equal(snapshot.steps[0].fields[0].asset_id, 'logo-512');
   assert.equal(snapshot.steps[0].fields[0].asset_sha256, 'a'.repeat(64));
 });
+
+test('普通快照按定位元数据排除授权；旧快照和动态换绑目标也不能恢复勾选', () => {
+  const consent = entry({label:'Confirm',inputType:'checkbox'},element({name:'agree_terms',id:'consent',checked:true}));
+  const snapshot = S.capture({entries:[consent],site:'x',url:'https://x/'});
+  assert.equal(snapshot.steps[0].fields[0].skipped,'sensitive');
+  assert.equal(snapshot.steps[0].fields[0].checked,undefined);
+  const legacy = {steps:[{fields:[{label:'Confirm',inputType:'checkbox',checked:true,value:true,
+    locator:{name:'agree_terms',id:'consent',inputType:'checkbox',label:'Confirm'}}]}]};
+  assert.equal(S.plan(legacy,[{...consent,element:element({name:'agree_terms',id:'consent'})}]).matched.length,0);
+  assert.deepEqual(S.diff([consent], legacy), []);
+  const oldSafe = {steps:[{fields:[{label:'Confirm',inputType:'checkbox',value:true,checked:true,
+    locator:{name:'safe',inputType:'checkbox',label:'Confirm'}}]}]};
+  assert.equal(S.plan(oldSafe,[entry({label:'Confirm',inputType:'checkbox'},element({name:'safe',id:'agree_terms'}))]).matched.length,0);
+});

@@ -1,4 +1,4 @@
-// 真实扩展/本机API/持久SourceStore/持久handoff的组合验收；第三方表单由显式合成路由提供。
+// 真实扩展/本机API/持久存储组合验收；保留域名映射到本地HTTP合成表单，不访问外部平台。
 import {after, before, test} from 'node:test';
 import assert from 'node:assert/strict';
 import {execFile} from 'node:child_process';
@@ -26,6 +26,7 @@ before(async () => {
   env = await startEnvironment({additionalKits: [fresh]});
   browser = await launchBrowser(env);
   await mkdir(screenshotDir, {recursive: true});
+
 }, {timeout: 180000});
 after(async () => {await browser?.context.close(); await env?.stop(); await env?.cleanup();});
 async function library(site = '') {
@@ -40,7 +41,7 @@ async function field(page, id, value) {
   else await locator.fill(value);
 }
 
-test('人工新增平台的免费/回链/类型/适配记录实际保存并读回，而非仅发消息', async () => {
+test('精简平台编辑实际落盘，保留原回链/适配记录，CSV实际下载', async () => {
   const page = await library('probekits');
   try {
     await page.click('#add');
@@ -48,38 +49,37 @@ test('人工新增平台的免费/回链/类型/适配记录实际保存并读�
     await field(page, 'url', 'https://new-platform.example/submit');
     await field(page, 'scenario', 'directory');
     await field(page, 'fee', 'free');
-    await field(page, 'backlink', 'false');
-    await page.getByRole('checkbox', {name: '确认适配 probekits', exact: true}).check();
+
     await field(page, 'note', '合成平台规则核对，不是外部投稿证据');
     await page.click('#save');
     await page.waitForFunction(() => !document.querySelector('#save').disabled);
     assert.match(await page.locator('#form-status').innerText(), /已保存并读回/);
     const saved = (await api('library?site=probekits&q=new-platform.example')).items[0];
     assert.equal(saved.fee, 'free');
-    assert.equal(saved.backlink, false);
-    assert.deepEqual(saved.fit_sites, ['probekits']);
+    assert.equal(saved.backlink, 'UNKNOWN');
+    assert.deepEqual(saved.fit_sites, []);
+    await api('library', {domain: 'new-platform.example', backlink: false, fit_sites: ['probekits']});
     await page.reload();
-    await page.waitForSelector('article[data-domain="new-platform.example"]');
-    await page.locator('article[data-domain="new-platform.example"] [data-action=edit]').click();
-    assert.equal(await page.getByRole('checkbox', {name: '确认适配 probekits', exact: true}).isChecked(), true);
-    assert.equal(await page.locator('#record-backlink').inputValue(), 'false');
+    await page.waitForSelector('tr[data-domain="new-platform.example"]');
+    await page.locator('tr[data-domain="new-platform.example"] [data-action=edit]').click();
     assert.equal(await page.locator('#record-note').inputValue(), '合成平台规则核对，不是外部投稿证据');
     await field(page, 'url', 'https://new-platform.example/new-submit');
-    await page.getByRole('checkbox', {name: '确认适配 probekits', exact: true}).uncheck();
+
     await page.click('#save');
     await page.waitForFunction(() => !document.querySelector('#save').disabled);
     assert.match(await page.locator('#form-status').innerText(), /已保存并读回/);
     const updated = (await api('library?site=probekits&q=new-platform.example')).items[0];
     assert.equal(updated.submit_url, 'https://new-platform.example/new-submit');
-    assert.deepEqual(updated.fit_sites, []);
+    assert.deepEqual(updated.fit_sites, ['probekits']);
+    assert.equal(updated.backlink, false);
     await page.click('#cancel-edit');
     const downloadPromise = page.waitForEvent('download');
     await page.click('#export');
     const stream = await (await downloadPromise).createReadStream();
     let text = ''; for await (const chunk of stream) text += chunk;
-    const exported = JSON.parse(text);
-    assert.equal(exported.scope, 'current_list');
-    assert.equal(exported.count, exported.items.length);
+    assert.ok(text.startsWith('\ufeffurl,domain,type,fee,'));
+    assert.match(text, /new-platform.example/);
+    assert.equal(text.includes('fit_sites'), false);
   } finally {await page.close();}
 });
 
@@ -91,7 +91,7 @@ test('新产品复用生成自己的持久计划，人工提交只记未知，�
   let form;
   try {
     assert.equal(await page.locator('#site').inputValue(), second, '必须能选到新增产品');
-    const row = page.locator(`article[data-domain="${source}"]`);
+    const row = page.locator(`tr[data-domain="${source}"]`);
     assert.equal(await row.locator('[data-action=fill]').isEnabled(), true);
     const opened = browser.context.waitForEvent('page');
     await row.locator('[data-action=fill]').click();
@@ -125,7 +125,7 @@ test('新产品复用生成自己的持久计划，人工提交只记未知，�
     assert.equal(after.reuse_state, 'already_submitted');
     assert.ok(after.history.some(item => item.site === second && item.status === '结果未知'));
     await page.reload();
-    await page.waitForSelector(`article[data-domain="${source}"]`);
+    await page.waitForSelector(`tr[data-domain="${source}"]`);
     assert.equal(await row.locator('[data-action=fill]').isDisabled(), true);
     const replay = await page.evaluate(message => chrome.runtime.sendMessage(message),
       {type: 'library:open', domain: source, site: second, fill: true});
@@ -168,11 +168,18 @@ test('真实扩展外链库四档宽度与深浅色：截图尺寸、滚动和�
       await page.setViewportSize({width, height: 900});
       await page.emulateMedia({colorScheme, reducedMotion: 'reduce'});
       const geometry = await page.evaluate(() => ({width: innerWidth, overflow: document.documentElement.scrollWidth - innerWidth,
-        bad: [...document.querySelectorAll('button, input, select, textarea')].filter(node => {
+        bad: [...document.querySelectorAll('button, input, select, textarea')].filter(node => !node.closest('.table-wrap')).filter(node => {
           const r = node.getBoundingClientRect(); return r.width && r.height && (r.left < -1 || r.right > innerWidth + 1);
         }).map(node => node.id)}));
       assert.equal(geometry.overflow <= 1, true);
       assert.deepEqual(geometry.bad, []);
+      // 六列表格只在自身容器横滑；窄屏也必须能实际抵达并点击操作列。
+      const edit = page.locator('tbody tr [data-action=edit]').first();
+      await edit.scrollIntoViewIfNeeded();
+      await edit.click();
+      assert.equal(await page.locator('#editor').isVisible(), true);
+      await page.click('#cancel-edit');
+      await page.evaluate(() => {document.querySelector('.table-wrap').scrollLeft = 0; scrollTo(0, 0);});
       const name = `fixture-${width}-${colorScheme}.png`;
       await page.screenshot({path: path.join(screenshotDir, name)});
       const png = await readFile(path.join(screenshotDir, name));

@@ -21,6 +21,8 @@ backlink-kit doctor
 backlink-kit start
 ```
 
+使用下载包时，在解压后的项目目录从 `sh scripts/install.sh` 开始执行。
+
 如果系统默认 Python 低于 3.11，用 `PYTHON=/你的/python3.11/路径 sh scripts/install.sh` 指定已安装的解释器。`start` 前台运行，使用期间保留终端；按 Ctrl+C 停止。
 
 ### 2. 连接浏览器

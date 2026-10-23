@@ -394,7 +394,7 @@
       <span class="mark" aria-hidden="true"></span>
       <span class="sum"><b class="text">准备就绪</b></span>
       <button data-act="fill" class="primary" title="填整页（Alt+Shift+F）"></button>
-      <button data-act="ai" title="AI 兜底（Alt+A）"></button>
+      <button data-act="ai" title="AI 智能填充（Alt+A）"></button>
       <button data-act="restore" title="复原最近快照（Alt+R）"></button>
       <button data-act="panel" title="打开侧边栏"></button>
       <button data-act="collapse" class="collapse" aria-label="收起">收起</button>

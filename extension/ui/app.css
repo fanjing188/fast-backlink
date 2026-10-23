@@ -89,7 +89,7 @@ button.danger:hover {background: var(--bad-bg); border-color: var(--bad)}
 button.sm {min-height: var(--control-sm); padding: 4px 9px; font-size: var(--fs-2); border-radius: var(--rc)}
 button.link {border: 0; background: none; padding: 4px 0; min-height: var(--control-sm); color: var(--brand); font-size: var(--fs-2)}
 
-input[type=text], input[type=url], input[type=search], input[type=number], select, textarea {
+input[type=text], input[type=password], input[type=email], input[type=url], input[type=search], input[type=number], select, textarea {
   width: 100%; background: var(--paper); color: var(--ink); border: 1px solid var(--line);
   border-radius: var(--rc); padding: 7px 10px; font-size: var(--fs-3); min-height: var(--control);
   transition: border-color var(--dur), box-shadow var(--dur);
@@ -181,13 +181,15 @@ input[type=number].num {font-family: var(--mono); font-variant-numeric: tabular-
 
 /* ---------- 媒体 ---------- */
 .media-grid {display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: var(--sp-2)}
-.media {border: 1px solid var(--line); border-radius: var(--r); background: var(--paper); overflow: hidden; display: flex; flex-direction: column}
-.media .thumb {aspect-ratio: 4 / 3; background: var(--line-2) center/contain no-repeat; display: flex; align-items: center; justify-content: center; color: var(--ink-3)}
-.media .thumb img {width: 100%; height: 100%; object-fit: contain; display: block}
+.media {min-width: 0; border: 1px solid var(--line); border-radius: var(--r); background: var(--paper); overflow: hidden; display: flex; flex-direction: column}
+/* 明确预览盒尺寸，避免原图的固有高度撑开卡片、挤压操作行。 */
+.media .thumb {height: 120px; min-height: 0; flex: none; overflow: hidden; background: var(--line-2) center/contain no-repeat; display: flex; align-items: center; justify-content: center; color: var(--ink-3)}
+.media .thumb img {width: 100%; height: 100%; min-width: 0; min-height: 0; object-fit: contain; display: block}
 .media .info {padding: 6px 8px; display: flex; flex-direction: column; gap: 1px}
 .media .name {font-size: var(--fs-1); font-weight: 600}
 .media .dims {font-size: 10px; color: var(--ink-3); font-family: var(--mono)}
-.media .bar {display: flex; gap: 4px; padding: 0 6px 6px}
+/* 品牌样式中的 .bar 是 4px 进度条；素材操作行必须按按钮自然撑高。 */
+.media .bar {height: auto; flex: none; overflow: visible; background: transparent; display: flex; gap: 4px; padding: 0 6px 6px}
 .media .bar button {flex: 1; justify-content: center}
 .dropzone {border: 1.5px dashed var(--line); border-radius: var(--r); padding: var(--sp-5) var(--sp-3); text-align: center;
   color: var(--ink-3); background: var(--paper); transition: border-color var(--dur), background var(--dur); cursor: pointer}

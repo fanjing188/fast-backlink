@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Fast-Backlink",
-  "description": "辅助填写外链提交表单，保存产品素材与待验证存档，换产品复用来源经验。验证码与最终提交由你完成。",
+  "description": "保存产品素材与待人工快照，复用外链来源。批量模式会自动提交，单页模式不自动提交；验证码、登录和付款转人工。",
   "version": "1.0.0",
   "minimum_chrome_version": "116",
   "permissions": [
@@ -62,6 +62,8 @@
         "https://*/*"
       ],
       "js": [
+        "lib/auth-policy.js",
+        "lib/auth-page.js",
         "logic.js",
         "lib/text.js",
         "lib/vendor-fbl.js",
@@ -75,6 +77,7 @@
         "lib/log.js",
         "ui/icons.js",
         "lib/ui.js",
+        "lib/batch-page.js",
         "content.js"
       ],
       "run_at": "document_idle",

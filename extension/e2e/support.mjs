@@ -229,7 +229,9 @@ export async function startEnvironment({site = 'probekits', ai = null, additiona
       request.on('data', chunk => { raw += chunk; });
       request.on('end', () => {
         try { aiRequests.push(JSON.parse(raw)); } catch { /* 不是 JSON 也照样回固定结果 */ }
-        const body = JSON.stringify({choices: [{message: {content: JSON.stringify({suggestions})}}],
+        const loginRequest = aiRequests.at(-1)?.messages?.[0]?.content?.startsWith('Select a login');
+        const answer = loginRequest && ai.auth_choice !== undefined ? {i: ai.auth_choice} : {suggestions};
+        const body = JSON.stringify({choices: [{message: {content: JSON.stringify(answer)}}],
           usage: {prompt_tokens: 10, completion_tokens: 5}});
         response.writeHead(200, {'Content-Type': 'application/json'});
         response.end(body);
@@ -300,7 +302,7 @@ export async function startEnvironment({site = 'probekits', ai = null, additiona
   };
 }
 
-export async function launchBrowser(env, settings = {}, extension = EXTENSION) {
+export async function launchBrowser(env, settings = {}, extension = EXTENSION, extraArgs = []) {
   const userDataDir = path.join(env.root, 'profile');
   await mkdir(userDataDir, {recursive: true});
   const context = await chromium.launchPersistentContext(userDataDir, {
@@ -313,6 +315,7 @@ export async function launchBrowser(env, settings = {}, extension = EXTENSION) {
       // 合成域名由本机HTTP夹具提供，临时测试浏览器不继承系统代理。
       '--host-resolver-rules=MAP library-flow.example 127.0.0.1',
       '--no-proxy-server',
+      ...extraArgs,
     ],
   });
   let [worker] = context.serviceWorkers();

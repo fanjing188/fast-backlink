@@ -19,12 +19,15 @@ async function openFixture(options = {}) {
     const item = {domain: 'a-very-long-platform-name-that-still-needs-a-readable-row.example',
       submit_url: 'https://directory.example/submit', scenario: 'directory', admission: '可投', reuse_state: 'ready',
       reasons: ['请人工核对当前产品是否仍符合目录规则'], dr: null, dr_date: '', fee: '', login: '', backlink: '',
-      has_recipe: true, previous_sites: ['old-product'], history: [{site: 'old-product', status: 'outcome_unknown'}], last_checked_at: '', note: '合成夹具，不是实际平台或提交记录。'};
-    window.__items = [item, {...item, domain: 'review.example', admission: '待核实', reuse_state: 'needs_review', has_recipe: false}];
-    Object.defineProperty(window, 'chrome', {configurable: true, value: {runtime: {sendMessage: async message => {
+      has_recipe: true, previous_sites: ['old-product'], history: [{site: 'old-product', status: 'outcome_unknown'}], last_checked_at: '', note: '合成夹具，不是实际平台或提交记录。',
+      submission_status: 'unsubmitted', submit_count: 1, submitted_products: [{site: 'old-product', date: '2026-10-20'}], dr_fresh: false};
+    window.__items = [item, {...item, domain: 'review.example', admission: '待核实', reuse_state: 'needs_review', submission_status: 'processing', has_recipe: false}];
+    Object.defineProperty(window, 'chrome', {configurable: true, value: {storage: {local: {get: async () => ({}), set: async () => {}}}, runtime: {sendMessage: async message => {
       window.__messages.push(message);
       if (message.type === 'sites') return {value: ['alpha', 'beta-with-a-long-product-name']};
       if (message.type === 'library:open') return {value: {tabId: 3}};
+      if (message.type === 'batch:command') return {value: []};
+      if (message.type === 'library:export') return {value: {csv: '\ufeffurl,domain,type,fee,note\r\nhttps://review.example/submit,review.example,directory,unknown,synthetic\r\n'}};
       if (message.type === 'library:save') {
         const saved = {...message.record, reuse_state: 'needs_review', reasons: [], has_recipe: false, previous_sites: [], history: []};
         window.__items = [saved, ...window.__items.filter(item => item.domain !== saved.domain)];
@@ -32,16 +35,16 @@ async function openFixture(options = {}) {
       }
       if (message.type === 'library:list') {
         if (window.__mode === 'error') return {error: '夹具：本机服务断开，请检查连接'};
-        if (window.__mode === 'loading') return new Promise(resolve => { window.__release = () => resolve({value: {items: [], counts: {total: 0, confirmed: 0, ready: 0, needs_review: 0, already_submitted: 0, blocked: 0}, site: message.site}}); });
+        if (window.__mode === 'loading') return new Promise(resolve => { window.__release = () => resolve({value: {items: [], total: 0, site: message.site}}); });
         let items = window.__mode === 'empty' ? [] : window.__items;
         const counts = {total: items.length, confirmed: items.filter(item => item.admission === '可投').length,
           ready: message.site ? items.filter(item => item.reuse_state === 'ready').length : 0,
           needs_review: items.filter(item => item.reuse_state === 'needs_review').length, already_submitted: 0, blocked: 0};
         if (message.q) items = items.filter(item => JSON.stringify(item).toLowerCase().includes(message.q.toLowerCase()));
-        if (message.status === 'confirmed') items = items.filter(item => item.admission === '可投');
-        else if (message.status !== 'all') items = items.filter(item => item.reuse_state === message.status);
-        if (message.scenario) items = items.filter(item => item.scenario === message.scenario);
-        return {value: {items, counts, site: message.site}};
+        if (message.domain) items = items.filter(item => item.domain === message.domain);
+        if (message.submission_status && message.submission_status !== 'all') items = items.filter(item => item.submission_status === message.submission_status);
+        if (message.scenario && message.scenario !== 'all') items = items.filter(item => item.scenario === message.scenario);
+        return {value: {items, total: items.length, counts, site: message.site}};
       }
       return {error: `夹具不支持的消息：${message.type}`};
     }}}});
@@ -59,20 +62,24 @@ for (const width of [320, 375, 480, 1440]) {
     test(`合成页面 ${width}px / ${theme}：清单、长域名、表单无横向溢出，动作按网格对齐`, async () => {
       const {page, context, errors} = await openFixture({width, theme});
       try {
-        assert.equal(await page.locator('article.platform').count(), 2);
+        assert.equal(await page.locator('tbody tr').count(), 2);
+        assert.equal(await page.locator('thead th').count(), 6);
         assert.equal(await page.locator('[data-action=fill]').first().isEnabled(), true);
         assert.equal(await page.locator('[data-action=fill]').nth(1).isEnabled(), false);
         assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
-        const actionBoxes = await page.locator('article.platform').first().locator('button').evaluateAll(buttons => buttons.map(button => {
+        const actionBoxes = await page.locator('tbody tr').first().locator('button').evaluateAll(buttons => buttons.map(button => {
           const {x, y, width, height} = button.getBoundingClientRect(); return {x, y, width, height};
         }));
         assert.equal(actionBoxes[0].y, actionBoxes[1].y);
         assert.ok(Math.abs(actionBoxes[0].width - actionBoxes[1].width) <= 1);
-        await page.locator('article.platform').first().locator('summary').click();
-        assert.match(await page.locator('article.platform').first().innerText(), /结果未知/);
+        assert.match(await page.locator('tbody tr').nth(1).innerText(), /处理中/);
+        await page.locator('tbody tr').first().locator('[data-action=edit]').scrollIntoViewIfNeeded();
+        await page.locator('tbody tr').first().locator('[data-action=edit]').click();
+        assert.equal(await page.locator('#record-domain').inputValue(), 'a-very-long-platform-name-that-still-needs-a-readable-row.example');
+        await page.locator('#cancel-edit').click();
         await page.getByRole('button', {name: '新增平台', exact: true}).click();
-        assert.equal(await page.locator('#record-admission').inputValue(), '待核实');
-        assert.equal(await page.locator('#fit-options input:checked').count(), 0);
+        assert.equal(await page.locator('#record-fee').inputValue(), 'unknown');
+        assert.equal(await page.locator('#record-scenario').inputValue(), '');
         assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
         assert.ok(await page.locator('#record-domain').evaluate(input => parseFloat(getComputedStyle(input).fontSize) >= 16));
         await page.locator('#cancel-edit').click();
@@ -84,15 +91,15 @@ for (const width of [320, 375, 480, 1440]) {
   }
 }
 
-test('合成页面：筛选、填写/查看消息、保存读回、JSON 下载与错误恢复', async () => {
+test('合成页面：筛选、填写/查看消息、保存读回、CSV 下载与错误恢复', async () => {
   const {page, context, errors} = await openFixture();
   try {
     await page.locator('[data-action=fill]').first().click();
     await page.waitForFunction(() => window.__messages.some(message => message.type === 'library:open'));
     const open = await page.evaluate(() => window.__messages.find(message => message.type === 'library:open'));
     assert.equal(open.fill, true); assert.equal(open.site, 'alpha');
-    await page.locator('#status').selectOption('needs_review');
-    await page.waitForFunction(() => document.querySelectorAll('article.platform').length === 1);
+    await page.locator('#status').selectOption('processing');
+    await page.waitForFunction(() => document.querySelectorAll('tbody tr').length === 1);
     await page.locator('[data-action=view]').click();
     assert.equal(await page.evaluate(() => window.__messages.filter(message => message.type === 'library:open').at(-1).fill), false);
     const downloadPromise = page.waitForEvent('download');
@@ -100,16 +107,17 @@ test('合成页面：筛选、填写/查看消息、保存读回、JSON 下载�
     const download = await downloadPromise;
     const stream = await download.createReadStream();
     let text = ''; for await (const chunk of stream) text += chunk;
-    const exported = JSON.parse(text);
-    assert.equal(exported.scope, 'current_list'); assert.equal(exported.items.length, 1);
-    assert.equal(exported.filters.status, 'needs_review');
+    assert.ok(text.startsWith('\ufeffurl,domain,type,fee,note'));
+    assert.match(text, /review.example/);
+    assert.equal(await page.evaluate(() => window.__messages.find(m => m.type === 'library:export').data.filters.submission_status), 'processing');
     await page.locator('#add').click();
     await page.locator('#record-domain').fill('new.example');
     await page.locator('#record-url').fill('https://new.example/submit');
     await page.locator('#record-note').fill('合成保存读回测试');
     await page.locator('#save').click();
     await page.waitForFunction(() => document.querySelector('#form-status').textContent.includes('已保存并读回'));
-    assert.equal(await page.evaluate(() => window.__messages.find(message => message.type === 'library:save').record.admission), '待核实');
+    assert.equal(await page.evaluate(() => window.__messages.find(message => message.type === 'library:save').record.fee), 'unknown');
+    assert.equal(await page.evaluate(() => 'fit_sites' in window.__messages.find(message => message.type === 'library:save').record), false);
     await page.evaluate(() => { window.__mode = 'error'; });
     await page.locator('#reload').click();
     await page.waitForFunction(() => !document.querySelector('#notice').hidden);

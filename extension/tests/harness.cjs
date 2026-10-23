@@ -99,6 +99,9 @@ function harness(options = {}) {
     globalThis: null, structuredClone};
   sandbox.globalThis = sandbox;
   vm.createContext(sandbox);
+  for (const name of ['auth-policy', 'auth-flow', 'batch']) {
+    vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'lib', name + '.js'), 'utf8'), sandbox);
+  }
   vm.runInContext(source, sandbox);
   const send = (message, sender) => new Promise(resolve => context.__listener(message, sender, resolve));
   const page = {tab: {id: 1}, frameId: 0, url: 'https://source.example/form'};

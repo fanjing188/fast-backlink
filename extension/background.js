@@ -2,6 +2,9 @@
 import './lib/idb.js';
 import './lib/log.js';
 import * as CDP from './lib/cdp.js';
+import './lib/auth-policy.js';
+import './lib/auth-flow.js';
+import './lib/batch.js';
 import {omitPasswordValues} from './vendor/fbl/password-values.mjs';
 
 // 只允许本机 127.0.0.1 的任意端口；端口可配是为了测试服务和常驻服务并存。
@@ -12,16 +15,25 @@ const OPERATIONS = {
   learn: '记录映射', remember: '记住表单', results: '保存填写结果', done: '标记待核实', skip: '跳过续填项',
   kit: '读取资料包', kits: '读取资料包列表', profile: '读取身份档案', queue: '读取任务队列',
   report: '读取统计', health: '检查本机服务', asset: '保存素材', ai: '读取 AI 状态',
-  ai_suggest: '获取 AI 兜底建议',
+  ai_suggest: '获取 AI 智能填充建议', ai_config: '读写 AI 配置', ai_test: '测试 AI 连接',
+  auth_suggest: '识别登录入口',
+  'submission-attempt': '记录提交尝试', library_bulk: '批量维护外链库', library_export: '导出外链库',
+  library_import: '导入外链库', library_import_preview: '预览外链库导入', batch_preview: '预览批量任务',
+  batch_start: '启动批量任务', batch_control: '控制批量任务', batch_status: '读取批量进度',
+  batch_claim: '领取批量任务', batch_attempt: '授权单次提交', batch_result: '保存批量结果', batch_resolve: '核实人工任务',
   library: '读取或保存外链库', library_prepare: '准备外链复用任务',
   'agent/next': '等待 Agent 指令', 'agent/result': '回传 Agent 结果',
 };
 const DEFAULT_SETTINGS = {
   restore_after_reload: true, restore_after_submit_error: true, restore_window_hours: 2,
   auto_next: false, auto_next_sites: {}, fill_low_confidence: true, inline_asset_button: true,
+  floating_window: true,
   ai_fallback: true, snapshot_keep: 5, snapshot_days: 14, log_level: 'info',
 };
 const logStore = globalThis.BKLog.createStore({send: entries => request('logs', {}, {entries}).then(result => result.written)});
+
+const sessionBindings = new Map(), tabWrites = new Map();
+const authFlow = BKAuthFlow.create({chrome, request, readTab, writeTab, buildSession, CDP, invalidateTab: bumpTab});
 
 // ---------- 本机服务 ----------
 
@@ -81,17 +93,41 @@ async function readTab(tabId) {
   const stored = (await chrome.storage.session.get(key))[key];
   return stored || {site: null, context: null, steps: [], submitted: false, step: 0, frames: {}};
 }
-async function writeTab(tabId, patch, eligible = () => true) {
-  const current = await readTab(tabId);
-  if (!eligible()) return null;
-  const next = {...current, ...patch};
-  if (current.submitted && patch.context && current.context?.site === patch.context.site &&
-      current.context?.source_domain === patch.context.source_domain) next.submitted = true;
-  await chrome.storage.session.set({['tab:' + tabId]: next});
-  return next;
+function bumpTab(tabId) {
+  const previous = sessionBindings.get(tabId);
+  sessionBindings.set(tabId, {pending: 0, failed: false, key: previous?.key});
+}
+function changeTab(tabId, update) {
+  const pending = (tabWrites.get(tabId) || Promise.resolve()).catch(() => {}).then(update);
+  tabWrites.set(tabId, pending);
+  pending.finally(() => {if (tabWrites.get(tabId) === pending) tabWrites.delete(tabId);}).catch(() => {});
+  return pending;
+}
+function writeTab(tabId, patch, options = {}) {
+  // public调用方仍可直接传eligible；登录模块保留guard/control可选合同。
+  if (typeof options === 'function') options = {guard: options};
+  if (options.control) bumpTab(tabId);
+  return changeTab(tabId, async () => {
+    const current = await readTab(tabId);
+    if (options.guard && !await options.guard()) return null;
+    const changes = typeof patch === 'function' ? patch(current) : patch;
+    const bound = current.context, context = changes.context;
+    const sameSource = bound?.site === context?.site && bound?.source_domain === context?.source_domain &&
+      samePage(bound?.submit_url, context?.submit_url);
+    if (options.session && sameSource && bound?.record?.id && !context?.record?.id) return null;
+    const pendingMatches = current.pendingItem && current.pendingItem === context?.record?.id &&
+      current.site === context?.site && samePage(current.entryURL, context?.submit_url);
+    const locked = options.session && current.submitted && (pendingMatches ||
+      sameSource && bound?.record?.id === context?.record?.id);
+    const next = {...current, ...changes, ...(locked ? {submitted: true} : {}),
+      ...(options.control ? {taskGeneration: (current.taskGeneration || 0) + 1} : {})};
+    await chrome.storage.session.set({['tab:' + tabId]: next});
+    return next;
+  });
 }
 async function clearTab(tabId) {
-  await chrome.storage.session.remove('tab:' + tabId);
+  bumpTab(tabId);
+  await changeTab(tabId, () => chrome.storage.session.remove('tab:' + tabId));
 }
 
 async function settings() {
@@ -108,7 +144,6 @@ async function patchSettings(patch) {
 
 // ---------- 会话 ----------
 
-const sessionBindings = new Map();
 function beginBinding(tabId, explicit, key) {
   // 同任务的顶层/子frame初始化共享绑定；不同任务或人工选择立即使旧请求失效。
   const previous = sessionBindings.get(tabId);
@@ -129,15 +164,25 @@ async function buildSession(tabId, message, sender, options = {}) {
   const key = message.id ? 'task:' + message.id : 'site:' + message.site + '|' + String(message.url || '').split('#')[0];
   const binding = beginBinding(tabId, explicit, key);
   const eligible = () => bindingCurrent(tabId, binding, explicit);
+  const valid = async () => eligible() && (!options.authTask || await authFlow.ready(tabId, options.authTask)) && eligible();
   try {
     const current = await readTab(tabId);
-    if (!eligible()) return null;
+    if (!await valid()) return null;
+    const auth = await chrome.tabs.sendMessage(tabId, {type: 'auth:probe'}, {frameId: 0}).then(r => r?.value).catch(() => null);
+    if (!await valid()) return null;
+    if (await authFlow.holds(tabId) || message.authGate || BKAuthPolicy.loginURL(message.url) || ['login', 'google', 'manual'].includes(auth?.kind)) {
+      if (message.site && !child) await writeTab(tabId, {site: message.site}, valid);
+      return null;
+    }
+    const pendingId = current.pendingItem && (!message.site || message.site === current.site) &&
+      samePage(current.entryURL, message.url) ? current.pendingItem : null;
+    const ident = message.id || (!child ? pendingId : null);
     let context = current.context;
     if (child && !message.id) {
-      // 来源属于顶层页面，不能让嵌入页用自己的URL抢建整个标签页的任务。
+      // 子frame只继承顶层产品，不能用嵌入页URL建立来源或抢走项目绑定。
       if (!context || (message.site && context.site !== message.site)) return null;
-    } else if (message.id) {
-      context = await request('item', {id: message.id});
+    } else if (ident) {
+      context = await request('item', {id: ident});
     } else if (message.site) {
       if (!message.url) throw Error('缺少页面地址，无法读取来源资料');
       context = await request('source', {site: message.site, url: message.url});
@@ -145,23 +190,24 @@ async function buildSession(tabId, message, sender, options = {}) {
       const site = current.site || (await chrome.storage.local.get('preferredSite')).preferredSite;
       if (site) context = await request('source', {site, url: message.url});
     }
-    if (!context) return null;
+    if (!context || !await valid()) return null;
+    if (!child && message.url && context.submit_url && new URL(message.url).origin !== new URL(context.submit_url).origin) return null;
     const rules = await request('rules');
+    const submitted = !!context.submission_locked || (!!current.submitted && current.context?.site === context.site &&
+      current.context?.record?.id === context.record?.id && current.context?.submit_url === context.submit_url);
+    const saved = await writeTab(tabId, {context, site: context.site, submitted}, {guard: valid, session: true});
     const prefs = await settings();
     const latest = await readTab(tabId);
-    if (!eligible()) return null;
-    const submissionLocked = !!context.submission_locked || (!!latest.submitted && latest.context?.site === context.site &&
-      latest.context?.record?.id === context.record?.id && latest.context?.submit_url === context.submit_url);
-    const committed = await writeTab(tabId, {context, site: context.site, submitted: submissionLocked}, eligible);
-    if (!committed || !eligible()) return null;
-    const submitted = committed.submitted;
+    if (!saved || !await valid() || latest.context?.site !== context.site || latest.context?.source_domain !== context.source_domain ||
+        latest.context?.record?.id !== context.record?.id || latest.context?.submit_url !== context.submit_url) return null;
+    context = latest.context;
+    const locked = !!latest.submitted || !!context.submission_locked;
     binding.failed = false;
-    // 默认请求不得越过后来建立的显式绑定；提交锁成立时只采纳上下文，不填写。
-    const type = options.adopt || submitted ? 'page:adopt' : 'page:session';
-    const delivery = chrome.tabs.sendMessage(tabId, {type, context, rules, submitted, settings: prefs, step: latest.step || 0}).catch(() => {});
+    const type = options.adopt || locked ? 'page:adopt' : 'page:session';
+    const delivery = chrome.tabs.sendMessage(tabId, {type, context, rules, submitted: locked, settings: prefs, step: latest.step || 0}).catch(() => {});
     if (options.wait) await delivery;
-    if (!eligible()) return null;
-    return {context, rules, settings: prefs, step: latest.step || 0, navigated: false, submitted, site: context.site};
+    if (!await valid()) return null;
+    return {context, rules, settings: prefs, step: latest.step || 0, navigated: false, submitted: locked, site: context.site};
   } catch (error) {
     if (explicit) binding.failed = true;
     throw error;
@@ -249,7 +295,100 @@ async function snapshotDecision(query) {
 // ---------- Agent CLI 命令通道 ----------
 
 const AGENT_ACTIONS = new Set(['status', 'tabs', 'open', 'fill', 'ai', 'restore', 'remember', 'snapshot',
-  'steps', 'state', 'activate', 'done', 'skip']);
+  'steps', 'state', 'activate', 'done', 'skip', 'batch']);
+let batchExecutor;
+async function batchOwner() {
+  const saved = await chrome.storage.local.get('batchOwner');
+  if (saved.batchOwner) return saved.batchOwner;
+  const owner = crypto.randomUUID().replaceAll('-', '');
+  await chrome.storage.local.set({batchOwner: owner});
+  return owner;
+}
+async function batchFrames(tabId, type, payload = {}) {
+  const tab = await readTab(tabId);
+  const ids = [...new Set([0, ...Object.keys(tab.frames || {}).map(Number)])];
+  const values = [];
+  for (const frameId of ids) {
+    const answer = await chrome.tabs.sendMessage(tabId, {type, ...payload}, {frameId});
+    if (answer?.error || !answer?.value) throw Error(answer?.error || `frame ${frameId} 读取失败`);
+    values.push({...answer.value, frameId});
+  }
+  return values;
+}
+function batchBinding(state, job) {
+  return state.site === job.site && state.context?.site === job.site &&
+    state.context?.source_domain === (job.domain || job.source) && state.context?.record?.id === job.id &&
+    samePage(state.entryURL, job.url) && samePage(state.context?.submit_url, job.url);
+}
+async function batchInspect(tabId, options = {}) {
+  const {job, ...inspection} = options;
+  if (job && (!batchBinding(await readTab(tabId), job) ||
+      !BKAuthPolicy.canFill({kind: 'form'}, (await chrome.tabs.get(tabId)).url, job.url))) {
+    return {result: 'unknown', reason: '标签页已不属于原批量任务；不自动重试'};
+  }
+  const values = await batchFrames(tabId, 'page:batch-inspect', inspection);
+  if (job && !batchBinding(await readTab(tabId), job)) return {result: 'unknown', reason: '读回期间任务绑定改变；不自动重试'};
+  const manual = values.find(v => v.result === 'manual');
+  const failed = values.find(v => v.result === 'failed' && v.hasForm);
+  const success = values.find(v => v.result === 'success');
+  if (manual || failed || success) return manual || failed || success;
+  const ready = values.filter(v => v.canSubmit);
+  if (ready.length === 1) return ready[0];
+  if (!values.some(v => v.hasForm) && !options.attempted) return {result: 'failed', reason: '找不到表单'};
+  return options.timedOut ? {result: 'unknown', reason: '单页3分钟超时；不自动重试'} : {};
+}
+function executor() {
+  if (!batchExecutor) batchExecutor = BKBatch.create({request, storage: chrome.storage.local, tabs: chrome.tabs,
+    ownerId: batchOwner, inspect: batchInspect,
+    archive: async tabId => (await batchFrames(tabId, 'page:archive')).map(v => ({...v.snapshot, frame_id: v.frameId})),
+    submit: async (tabId, frameId) => {
+      const reply = await chrome.tabs.sendMessage(tabId, {type: 'page:batch-submit'}, {frameId});
+      if (reply?.error) throw Error(reply.error);
+      return reply?.value;
+    },
+    open: async (tabId, job) => {
+      await writeTab(tabId, {site: job.site, pendingItem: job.id, entryURL: job.url}, {control:true});
+      const tab = await waitForContent(tabId);
+      await buildSession(tabId, {id: job.id, site: job.site, url: tab.url}, {}, {wait: true});
+    }});
+  return batchExecutor;
+}
+async function batchTick() {
+  await executor().tick();
+  const saved = await chrome.storage.local.get('batchReviews');
+  const reviews = saved.batchReviews || {};
+  for (const [tabId, job] of Object.entries(reviews)) {
+    try {
+      const matches = state => state.site === job.site && state.context?.site === job.site &&
+        state.context?.source_domain === job.source && state.context?.record?.id === job.id && samePage(state.entryURL, job.url);
+      const tab = await readTab(Number(tabId));
+      if (!matches(tab)) {delete reviews[tabId]; continue;}
+      if (!tab.submitted) continue;
+      const current = await chrome.tabs.get(Number(tabId));
+      if (!BKAuthPolicy.canFill({kind:'form'}, current.url, job.url)) continue;
+      const result = await batchInspect(Number(tabId), {attempted: true, baseline: job.baseline});
+      if (!matches(await readTab(Number(tabId))) || (await chrome.tabs.get(Number(tabId))).url !== current.url) continue;
+      if (result.result === 'success') {
+        await request('batch_resolve', {}, {...job, result: 'success', reason: '人工提交后页面确认收稿'});
+        delete reviews[tabId];
+      }
+    } catch { /* 未明确成功时保留人工任务，不重放 */ }
+  }
+  await chrome.storage.local.set({batchReviews: reviews});
+}
+async function batchCommand(data) {
+  if (data.action === 'status') return request('batch_status', {id: data.id});
+  if (data.action === 'start') {
+    const value = await request('batch_start', {}, data);
+    batchTick().catch(() => {});
+    return value;
+  }
+  const value = await request('batch_control', {}, data);
+  if (data.action === 'resume') batchTick().catch(() => {});
+  return value;
+}
+
+
 let agentPolling = false;
 
 function tabSummary(tab) {
@@ -294,6 +433,8 @@ async function waitForContent(tabId, timeout = 15000) {
     if (tab?.status === 'complete') {
       const reply = await chrome.tabs.sendMessage(tabId, {type: 'page:state'}, {frameId: 0}).catch(() => null);
       if (reply?.value) return tab;
+      const auth = await chrome.tabs.sendMessage(tabId, {type: 'auth:probe'}, {frameId: 0}).catch(() => null);
+      if (auth?.value) return tab;
     }
     await new Promise(resolve => setTimeout(resolve, 200));
   }
@@ -349,6 +490,10 @@ async function agentPrepare(args = {}, options = {}) {
   if (!/^https?:/i.test(tab.url || '')) throw Error('只支持 http/https 页面');
   if (item && !samePage(tab.url, item.submit_url)) throw Error('标签页与续填项地址不一致');
   if (options.session || options.adopt) {
+    const current = await readTab(tab.id);
+    if (args.item || (args.site && args.site !== current.site) || (args.url && args.url !== (current.entryURL || current.context?.submit_url))) {
+      await recordEntry(tab.id, {...args, url: args.url || tab.url});
+    }
     const session = await buildSession(tab.id, {id: args.item, site: args.site, url: tab.url}, {},
       {adopt: !!options.adopt && !options.session, wait: true});
     if (!session) throw Error('这个来源拿不到资料：请从续填列表打开或先选项目');
@@ -380,6 +525,14 @@ async function agentTabs() {
   return {tabs: rows};
 }
 
+async function recordEntry(tabId, args) {
+  const current = await readTab(tabId);
+  const changed = (current.entryURL || current.context?.submit_url) !== args.url ||
+    (current.pendingItem || null) !== (args.item || null) || (args.site && current.site !== args.site);
+  if (changed) await authFlow.invalidate(tabId);
+  await writeTab(tabId, {entryURL: args.url, ...(args.site ? {site: args.site} : {}), pendingItem: args.item || null}, {control: !!changed});
+}
+
 async function agentOpen(args = {}) {
   let item = null;
   if (args.item) {
@@ -392,16 +545,20 @@ async function agentOpen(args = {}) {
   if (tab) {
     await chrome.tabs.update(tab.id, {active: true});
     chrome.windows?.update(tab.windowId, {focused: true}).catch(() => {});
+    await recordEntry(tab.id, args);
     tab = await waitForContent(tab.id);
   } else {
     const created = await chrome.tabs.create({url: args.url, active: true});
+    await recordEntry(created.id, args);
     tab = await waitForContent(created.id);
   }
-  if (item && !samePage(tab.url, item.submit_url)) throw Error('标签页与续填项地址不一致');
+  if (item && !samePage(tab.url, item.submit_url) && !BKAuthPolicy.loginURL(tab.url)) throw Error('标签页与续填项地址不一致');
   if (args.fill === false) return {opened, tab: tabSummary(tab)};
   if (args.site || args.item) {
     await buildSession(tab.id, {id: args.item, site: args.site, url: tab.url}, {}, {wait: true});
   }
+  const login = await authFlow.status(tab.id);
+  if (login.authorized && ['login', 'google'].includes(login.kind)) await authFlow.start(tab.id);
   const reply = await tabCommand(tab.id, 'page:fill', {force: !!args.force}).catch(() => null);
   const state = await waitForReports(tab.id);
   const view = agentView(tab, state);
@@ -512,6 +669,10 @@ async function executeAgentCommand(command) {
   const args = command?.args && typeof command.args === 'object' ? command.args : {};
   if (!AGENT_ACTIONS.has(action)) throw Error('未知 Agent 动作：' + action);
   switch (action) {
+    case 'batch': {
+      const value = await batchCommand(args);
+      return Array.isArray(value) ? {batches: value} : value;
+    }
     case 'status': return agentStatus();
     case 'tabs': return agentTabs();
     case 'open': return agentOpen(args);
@@ -604,6 +765,14 @@ async function handle(message, sender) {
   if (fromPage && ['agent:execute', 'agent:wake', 'panel:archive'].includes(message.type)) {
     throw Error('仅允许扩展页面');
   }
+  if (message.type.startsWith('auth:')) {
+    if (fromPage) throw Error('仅允许扩展页面授权和控制登录');
+    if (message.type === 'auth:grant') return authFlow.grant(tabId, message);
+    if (message.type === 'auth:status') return authFlow.status(tabId);
+    if (message.type === 'auth:start') return authFlow.start(tabId);
+    if (message.type === 'auth:resume') return authFlow.step(tabId, true);
+    if (message.type === 'auth:cancel') return authFlow.cancel(tabId);
+  }
   switch (message.type) {
     case 'session': {
       const session = await buildSession(tabId, message, sender, {adopt: message.adopt === true, wait: message.adopt === true});
@@ -616,12 +785,55 @@ async function handle(message, sender) {
     case 'agent:execute': return executeAgentCommand(message.command || {});
     case 'rules': return request('rules');
     case 'ai:suggest': return request('ai_suggest', {}, message.payload || {});
+    case 'ai:configure':
+    case 'ai:test':
+      if (fromPage) throw Error('仅允许扩展页面管理 AI 配置');
+      return request(message.type === 'ai:test' ? 'ai_test' : 'ai_config', {}, message.patch || {});
     case 'sites': return request('sites');
     case 'kits': return request('kits');
     case 'kit': return request('kit', {site: message.site});
     case 'library:list':
       if (fromPage) throw Error('仅允许扩展页面读取外链库');
-      return request('library', {site: message.site || '', q: message.q || '', status: message.status || 'all', scenario: message.scenario || ''});
+      return request('library', Object.fromEntries(['site','q','domain','status','scenario','fee','submission_status','dr_min','dr_max','sort','order','page','page_size'].filter(k => message[k] !== undefined).map(k => [k, message[k]])));
+    case 'library:bulk':
+    case 'library:export':
+    case 'library:import':
+    case 'library:import-preview':
+      if (fromPage) throw Error('仅允许扩展页面维护外链库');
+      return request({'library:bulk':'library_bulk', 'library:export':'library_export', 'library:import':'library_import', 'library:import-preview':'library_import_preview'}[message.type], {}, message.data);
+    case 'batch:preview':
+    case 'batch:command':
+    case 'batch:resolve':
+    case 'batch:open': {
+      if (fromPage) throw Error('仅允许扩展页面控制批量任务');
+      if (message.type === 'batch:preview') return request('batch_preview', {}, message.data);
+      if (message.type === 'batch:command') return batchCommand(message.data);
+      if (message.type === 'batch:resolve') return request('batch_resolve', {}, message.data);
+      const batches = await request('batch_status', {id: message.data.batch_id});
+      const job = batches.jobs.find(j => j.id === message.data.id && ['manual','unknown'].includes(j.state));
+      if (!job) throw Error('任务已不在待人工列表，请刷新');
+      if (job.state === 'unknown') return agentOpen({url: job.url, fill: false});
+      const opened = await agentOpen({item: job.id, site: batches.site, fill: true});
+      const baseline = (await batchInspect(opened.tab.id, {attempted:false})).feedback;
+      const saved = await chrome.storage.local.get('batchReviews');
+      await chrome.storage.local.set({batchReviews: {...saved.batchReviews, [opened.tab.id]: {
+        id: job.id, batch_id: batches.id, site: batches.site, source: job.domain, url: opened.tab.url, baseline}}});
+      return opened;
+    }
+    case 'batch:authorize': {
+      if (!fromPage) throw Error('仅允许批量页面请求单次提交授权');
+      const saved = await chrome.storage.local.get('batchJobs');
+      const job = Object.values(saved.batchJobs || {}).find(j => j.tabId === tabId);
+      if (!job) throw Error('页面不属于活动批量任务');
+      const current = await chrome.tabs.get(tabId);
+      const matches = async () => batchBinding(await readTab(tabId), job) &&
+        (await chrome.tabs.get(tabId)).url === current.url && samePage(current.url, job.url) &&
+        !BKAuthPolicy.loginURL(current.url);
+      if (!await matches()) throw Error('页面或产品已不属于原批量任务，停止自动提交');
+      const permit = await request('batch_attempt', {}, job);
+      if (!await matches() || permit?.authorized !== true || permit.id !== job.id) throw Error('批量授权回包后任务绑定已变化，停止提交');
+      return permit;
+    }
     case 'library:save':
       if (fromPage) throw Error('仅允许扩展页面修改外链库');
       if (!message.record || typeof message.record !== 'object' || Array.isArray(message.record)) throw Error('外链记录格式无效');
@@ -629,7 +841,7 @@ async function handle(message, sender) {
     case 'library:open': {
       if (fromPage) throw Error('仅允许扩展页面打开外链库任务');
       if (!message.domain) throw Error('请选择外链平台');
-      const list = await request('library', {site: message.site || '', q: message.domain});
+      const list = await request('library', {site: message.site || '', domain: message.domain});
       const item = list.items?.find(row => row.domain === message.domain);
       if (!item) throw Error('外链库中没有这个平台，请刷新后重试');
       const safeURL = value => {
@@ -688,11 +900,11 @@ async function handle(message, sender) {
     }
     case 'log': return logStore.ingest((message.entries || []).map(entry => ({...entry, tab: tabId ?? entry.tab, tab_id: tabId})));
     case 'frame:report': {
-      const tab = await readTab(tabId);
-      const frames = {...(tab.frames || {})};
       const frameId = sender.frameId ?? 0;
-      frames[frameId] = {...(message.summary || {}), at: Date.now(), top: frameId === 0};
-      const next = await writeTab(tabId, {frames, step: frames[0]?.step ?? tab.step});
+      const next = await writeTab(tabId, tab => {
+        const frames = {...(tab.frames || {}), [frameId]: {...(message.summary || {}), at: Date.now(), top: frameId === 0}};
+        return {frames, step: frames[0]?.step ?? tab.step};
+      });
       const info = aggregate(next, tabId);
       if (frameId === 0) await badge(tabId, info);
       return {ok: true};
@@ -731,10 +943,19 @@ async function handle(message, sender) {
       return request('results', {}, {...message.data, id: tab.context.record.id, site: tab.context.site, url: tab.context.submit_url});
     }
     case 'submitted': {
-      await writeTab(tabId, {submitted: true});
-      const tab = await readTab(tabId);
-      if (tab.context?.record?.id) {
-        await request('submission-attempt', {}, {id: tab.context.record.id});
+      bumpTab(tabId);
+      const tab = await writeTab(tabId, {submitted: true});
+      // 任务读回尚未完成时也保留可信入口绑定，不等待旧会话下发后再记录投稿。
+      const ident = tab.pendingItem || (tab.context?.site === tab.site ? tab.context?.record?.id : null);
+      if (ident) await request('submission-attempt', {}, {id: ident});
+      else if ((sender.frameId ?? 0) === 0 && /^[a-f0-9]{32}$/.test(message.item || '')) {
+        // 原始标记尚未读回时不能盲信ID；锁住本页，再核任务与实际投稿地址。
+        const context = await request('item', {id: message.item});
+        const expected = new URL(context.submit_url), actual = new URL(sender.url || sender.tab.url);
+        expected.hash = ''; actual.hash = '';
+        if (context.record?.id === message.item && expected.href === actual.href) {
+          await request('submission-attempt', {}, {id: message.item});
+        }
       }
       return {ok: true};
     }
@@ -794,13 +1015,18 @@ async function handle(message, sender) {
       const site = message.site;
       if (!site) throw Error('请选择目标站');
       const selection = ++projectSelection;
-      const binding = beginBinding(tabId, true, 'selection:' + selection);
+      bumpTab(tabId);
+      let binding = beginBinding(tabId, true, 'selection:' + selection);
       const eligible = () => selection === projectSelection && bindingCurrent(tabId, binding, true);
       try {
+        await authFlow.invalidate(tabId);
+        if (selection !== projectSelection) return {site, superseded: true};
+        if (!bindingCurrent(tabId, binding, true)) {binding.pending--; binding = beginBinding(tabId, true, 'selection:' + selection);}
         await request('kit', {site});
         const tab = tabId == null ? null : await chrome.tabs.get(tabId);
         if (!tab) throw Error('找不到当前标签页');
-        if (!await writeTab(tab.id, {site}, eligible) || !eligible()) return {site, superseded: true};
+        if (!await writeTab(tab.id, current => ({site, ...(site !== current.site ? {pendingItem: null} : {}),
+          taskGeneration: (current.taskGeneration || 0) + 1}), eligible) || !eligible()) return {site, superseded: true};
         await chrome.storage.local.set({preferredSite: site});
         if (!eligible()) return {site, superseded: true};
         await chrome.tabs.sendMessage(tab.id, {type: 'page:activate', site}).catch(() => {});
@@ -859,7 +1085,7 @@ chrome.runtime.onInstalled.addListener(() => {
   ensureAgentPolling();
   const menus = [
     ['fb-fill-page', '填入整页（Fast-Backlink）', ['page', 'editable']],
-    ['fb-ai', 'AI 兜底填写整页', ['page', 'editable']],
+    ['fb-ai', 'AI 智能填充整页', ['page', 'editable']],
     ['fb-fill-field', '填入这个字段', ['editable']],
     ['fb-restore', '复原最近快照', ['page', 'editable']],
     ['fb-panel', '打开侧边栏', ['page', 'editable']],
@@ -886,8 +1112,10 @@ chrome.commands?.onCommand.addListener(async command => {
   if (type) await chrome.tabs.sendMessage(tab.id, {type}).catch(() => {});
 });
 
-chrome.tabs.onRemoved.addListener(tabId => { sessionBindings.delete(tabId); clearTab(tabId); });
+chrome.tabs.onCreated?.addListener(tab => {authFlow.created(tab).catch(() => {});});
+chrome.tabs.onRemoved.addListener(tabId => { authFlow.changed(tabId, true).catch(() => {}); clearTab(tabId); });
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo) => {
+  if (changeInfo.status === 'complete') authFlow.changed(tabId).catch(() => {});
   if (changeInfo.status !== 'loading') return;
   const tab = await readTab(tabId);
   // 页面重新加载：清掉 frame 汇总，但保留会话与已提交标记。
@@ -900,8 +1128,10 @@ chrome.runtime.onStartup?.addListener(() => {
   ensureAgentPolling();
 });
 chrome.alarms?.onAlarm.addListener(alarm => {
-  if (alarm.name === 'fb-agent') pollAgentLoop();
+  if (alarm.name === 'fb-agent') {pollAgentLoop(); authFlow.tick().catch(() => {}); batchTick().catch(() => {});}
 });
 
 // 队列里的日志和快照在服务恢复后补发。
 setInterval(() => { logStore.deliver().catch(() => {}); }, 60000);
+
+setInterval(() => { if (chrome.alarms) batchTick().catch(() => {}); }, 1500);

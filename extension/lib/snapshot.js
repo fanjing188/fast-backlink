@@ -34,12 +34,20 @@
     };
   }
 
-  function fieldValue(entry) {
-    const field = entry.field;
+  function skipReason(field, where = {}) {
     if (field.captcha) return {skipped: 'captcha'};
     if (SENSITIVE_SKIP.has(field.sensitive)) return {skipped: 'sensitive'};
-    if (['radio', 'checkbox'].includes(field.inputType) &&
-        /(agree|accept|terms|privacy|consent|条款|同意|授权|subscribe|newsletter|opt.?in)/i.test(field.label || '')) return {skipped: 'sensitive'};
+    const text = [field.key, field.label, field.name, field.autocomplete, where.name, where.id, where.label, where.autocomplete].join(' ');
+    if (/one-time-code|\botp\b|captcha|验证码/i.test(text)) return {skipped: 'captcha'};
+    if (field.inputType === 'password' || ['radio', 'checkbox'].includes(field.inputType || where.inputType) &&
+        /(agree|accept|terms|privacy|consent|条款|同意|授权|subscribe|newsletter|opt.?in)/i.test(text)) return {skipped: 'sensitive'};
+    return null;
+  }
+
+  function fieldValue(entry) {
+    const field = entry.field;
+    const blocked = skipReason(field, locator(entry.element, field));
+    if (blocked) return blocked;
     if (field.inputType === 'file') return {asset_id: entry.assetId?.id || entry.assetId || null,
       asset_sha256: entry.assetId?.sha256 || null, value: ''};
     if (field.inputType === 'checkbox') return {checked: !!entry.element.checked, value: entry.element.checked ? (field.label || 'on') : ''};
@@ -109,9 +117,9 @@
     const used = new Set();
     const matched = [], missing = [], conflicts = [], skipped = [];
     for (const record of step.fields || []) {
-      if (record.skipped) { skipped.push(record); continue; }
+      if (record.skipped || skipReason(record, normalizedLocator(record))) { skipped.push(record); continue; }
       const ranked = entries.filter(entry => !used.has(entry.element) && !entry.field.honeypot && !entry.field.disabled &&
-        !entry.field.sensitive && !entry.field.captcha &&
+        !entry.field.sensitive && !entry.field.captcha && !skipReason(entry.field, locator(entry.element, entry.field)) &&
         (!record.locator?.inputType || record.locator.inputType === entry.field.inputType))
         .map(entry => ({entry, score: score(record, entry)}))
         .sort((a, b) => b.score - a.score);
@@ -134,10 +142,11 @@
     const rows = [];
     const records = snapshot.steps?.[snapshot.step_index || 0]?.fields || [];
     for (const record of records) {
-      if (record.skipped) continue;
+      if (record.skipped || skipReason(record, normalizedLocator(record))) continue;
       rows.push({label: record.label, key: record.key, snapshot: record.value ?? record.checked ?? '', current: '', state: 'missing'});
     }
     for (const entry of current) {
+      if (skipReason(entry.field, locator(entry.element, entry.field))) continue;
       const row = rows.find(item => T.normalize(item.label) === T.normalize(entry.field.label));
       const value = root.BKFields.read(entry.element, entry.field);
       if (row) {

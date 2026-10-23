@@ -285,7 +285,7 @@ function mediaSection() {
       thumb.append(icon(key.startsWith('demo_') ? 'video' : 'image'), text('缺素材'));
       card.classList.add('missing');
     }
-    const alt = el('input', {value: assets[0]?.alt || '', placeholder: 'alt 文本', 'aria-label': `${title} alt`});
+    const alt = el('input', {type: 'text', value: assets[0]?.alt || '', placeholder: 'alt 文本', 'aria-label': `${title} alt`});
     alt.addEventListener('change', () => {
       const value = alt.value;
       queueKit(kit, async () => {

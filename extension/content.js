@@ -2,18 +2,20 @@
 (() => {
   if (window.__fastBacklinkInitialized) return;
   window.__fastBacklinkInitialized = true;
+  // OAuth页只保留auth-page候选接口，不接收产品数据、日志或快照。
+  if (BKAuthPolicy.google(location.href) || BKAuthPolicy.callbackURL(location.href)) return;
   const F = BKFields, T = BKText, M = BKMatch, S = BKSnapshot, UI = BKUI, A = BKAI;
   const TOP = window.top === window;
   const FINAL_WORDS = /(submit|publish|pay|send|post|order|buy|提交|发布|购买|发送|下单|结账|付款)/i;
 
   const state = {
-    session: null, rules: null, settings: {}, entries: [], decisions: new Map(), assetIds: {},
+    session: null, entryItem: null, rules: null, settings: {}, entries: [], decisions: new Map(), assetIds: {}, loginHold: false,
     touched: new WeakSet(), byHuman: new WeakSet(), step: 0, run: null, restored: 0, submitted: false,
     lastSignature: '', filled: new WeakSet(), busy: false, pending: false, lastSnapshot: null, complete: false,
     autoNextDone: new WeakSet(), log: null, layer: null, marks: null, bar: null, button: null, hover: null,
     platform: 'generic', counters: {filled: 0, confirm: 0, unmatched: 0, captcha: 0, honeypot: 0, sensitive: 0, total: 0},
     ai: null, aiAttempt: '', aiBusy: false, aiDisabled: false, aiBinding: null, sessionGeneration: 0,
-    humanRevision: 0, ownWriteDepth: 0,
+    humanRevision: 0, ownWriteDepth: 0, fileWrites: new WeakSet(),
     archiveRestored: new Set(), archiveInFlight: null,
   };
 
@@ -23,16 +25,29 @@
     return response?.value;
   };
 
+  function loginPage() {
+    return ['login', 'google', 'manual'].includes(BKAuthPage.inspect().kind);
+  }
+
+  function contentAllowed() {
+    return !state.loginHold && !loginPage() && (!TOP || !state.session?.submit_url ||
+      BKAuthPolicy.canFill({kind: 'form'}, location.href, state.session.submit_url));
+  }
+
   function adoptContext(context, submitted = false) {
     const sameSource = state.session?.site === context.site && state.session?.source_domain === context.source_domain;
+    if (sameSource && state.session?.record?.id && !context.record?.id) return false;
+    const sameBinding = sameSource && state.session?.record?.id === context.record?.id && state.session?.submit_url === context.submit_url;
     if (!sameSource || state.session?.record?.id !== context.record?.id || state.session?.submit_url !== context.submit_url) {
       state.sessionGeneration++;
       state.ai = null;
       state.aiBinding = null;
       state.aiAttempt = '';
     }
-    state.submitted = !!submitted || !!context.submission_locked || (sameSource && state.submitted);
+    state.submitted = !!submitted || !!context.submission_locked || ((sameBinding || !state.session) && state.submitted);
     state.session = context;
+    state.entryItem = null;
+    return true;
   }
 
   function context() {
@@ -53,7 +68,7 @@
     try {
       const session = await send('session', {url: location.href, adopt: true});
       if (!session?.context) return false;
-      adoptContext(session.context, session.submitted);
+      if (!adoptContext(session.context, session.submitted)) return false;
       state.rules = session.rules;
       state.settings = {...session.settings, auto_next_for: session.context.auto_next};
       state.step = session.step || 0;
@@ -66,7 +81,7 @@
     }
   }
 
-  // ---------- AI 兜底 ----------
+  // ---------- AI 智能填充 ----------
 
   function aiSummary() {
     if (!state.ai) return null;
@@ -97,13 +112,13 @@
       signature: JSON.stringify([safe, fieldIdentity(field, entry.element), field.options, field.helpText, field.placeholder])};
   }
 
-  function aiBindingCurrent(binding) {
+  function bindingCurrent(binding) {
     return binding && binding.generation === state.sessionGeneration && binding.humanRevision === state.humanRevision &&
-      binding.url === location.href && binding.documentRoot === document.documentElement && !state.submitted;
+      binding.url === location.href && binding.documentRoot === document.documentElement && !state.submitted && contentAllowed();
   }
 
   async function aiFallback(options = {}) {
-    if (!state.session) return state.ai;
+    if (!state.session || !contentAllowed()) return state.ai;
     if (state.aiDisabled && !options.force) return state.ai;
     if (!options.force && state.settings.ai_fallback === false) return state.ai;
     if (state.aiBusy) return state.ai;
@@ -127,7 +142,7 @@
         site: state.session.site, source_domain: state.session.source_domain,
         url: location.href.split('#')[0], fingerprint, fields,
       }});
-      if (!aiBindingCurrent(binding)) {
+      if (!bindingCurrent(binding)) {
         return {stale: true, reason: 'context_changed', suggestions: []};
       }
       if (response?.enabled === false) {
@@ -193,7 +208,7 @@
       render();
       return state.ai;
     } catch (error) {
-      if (!aiBindingCurrent(binding)) return {stale: true, reason: 'context_changed', suggestions: []};
+      if (!bindingCurrent(binding)) return {stale: true, reason: 'context_changed', suggestions: []};
       state.ai = {enabled: true, configured: false, busy: false, suggestions: [], at: Date.now(),
         error: String(error.message || error)};
       state.log?.push('warn', 'ai', 'unavailable', {reason: String(error.message || error)});
@@ -208,7 +223,7 @@
     const ai = state.ai;
     if (state.submitted) return {filled: 0, skipped: ai?.suggestions?.length || 0, reason: 'submitted'};
     const binding = state.aiBinding;
-    if (!aiBindingCurrent(binding)) {
+    if (!bindingCurrent(binding)) {
       return {filled: 0, skipped: ai?.suggestions?.length || 0, reason: 'context_changed'};
     }
     if (!ai?.suggestions?.length) return {filled: 0, skipped: 0};
@@ -216,7 +231,7 @@
     const ctx = matchCtx();
     let filled = 0, skipped = 0;
     for (const suggestion of ai.suggestions) {
-      if (!aiBindingCurrent(binding)) break;
+      if (!bindingCurrent(binding)) break;
       if (suggestion.applied || suggestion.key === null || suggestion.key === undefined) continue;
       if (indices && !indices.has(suggestion.i)) continue;
       if (options.minConf !== undefined && suggestion.conf < options.minConf) {skipped++; continue;}
@@ -240,9 +255,9 @@
         suggestion.reason = converted.reason || 'convert_failed'; skipped++; continue;
       }
       const applied = await applyValue(entry, converted.value, {key: suggestion.key,
-        eligible: () => aiBindingCurrent(binding),
+        eligible: () => bindingCurrent(binding),
         candidates: M.optionCandidates(suggestion.key, converted.value, context())});
-      if (!aiBindingCurrent(binding)) break;
+      if (!bindingCurrent(binding)) break;
       if (!applied.ok) {
         suggestion.reason = applied.reason || applied.error || 'fill_failed'; skipped++; continue;
       }
@@ -259,7 +274,7 @@
         await send('learn', {label: entry.field.label, key: suggestion.key, site: state.session?.site}).catch(() => {});
       }
     }
-    if (filled && aiBindingCurrent(binding)) {
+    if (filled && bindingCurrent(binding)) {
       await capture({by: 'ai'});
       render();
     }
@@ -359,7 +374,25 @@
     return {text: `已填 ${count.filled}/${count.total}`, chips};
   }
 
+  function syncFloatingWindow() {
+    if (!TOP || !state.layer) return;
+    if (state.settings.floating_window === false) {
+      state.bar?.remove();
+      state.bar = null;
+      return;
+    }
+    if (state.bar) return;
+    state.bar = UI.statusBar({onAction: action => {
+      if (action === 'fill') fillAll({force: false});
+      if (action === 'ai') aiUserTrigger();
+      if (action === 'restore') restore({announce: true});
+      if (action === 'panel') send('panel:open').catch(() => {});
+    }});
+    state.bar.set(statusText());
+  }
+
   function render() {
+    syncFloatingWindow();
     const count = marks(state.marks);
     if (state.bar) state.bar.set(statusText());
     const decisionView = state.entries.map(entry => ({
@@ -413,7 +446,7 @@
     const target = fieldTarget(entry), element = target.element;
     const generation = state.sessionGeneration, url = location.href;
     const humanRevision = state.humanRevision;
-    const contextCurrent = () => !state.submitted && state.sessionGeneration === generation &&
+    const contextCurrent = () => contentAllowed() && !state.submitted && state.sessionGeneration === generation &&
       state.humanRevision === humanRevision && location.href === url && target.documentRoot === document.documentElement && (!extra || extra());
     const eligible = () => {
       if (!contextCurrent() || !element.isConnected || element.form !== target.form || element.getRootNode() !== target.root) return false;
@@ -430,6 +463,7 @@
   }
 
   async function applyValue(entry, value, options = {}) {
+    if (!contentAllowed()) return {ok: false, reason: 'login_in_progress'};
     const field = entry.field, element = entry.element;
     const log = state.log;
     const started = Date.now();
@@ -444,7 +478,13 @@
           // 大文件走本机暂存路径 + CDP，不经消息体。
           const staged = await send('stage', {id: asset.id, sha256: asset.sha256});
           if (!eligible()) return {ok: false, reason: 'target_changed'};
-          const result = await send('cdp:upload', {selector: F.selector(element), path: staged.path, allowedRoot: staged.root});
+          if (state.fileWrites.has(element)) return {ok: false, reason: 'file_write_in_progress'};
+          state.fileWrites.add(element);
+          let result;
+          try {
+            result = await send('cdp:upload', {selector: F.selector(element), path: staged.path, allowedRoot: staged.root});
+          } finally {state.fileWrites.delete(element);}
+          if (!eligible()) return {ok: false, reason: 'target_changed'};
           if (result?.ok) { state.assetIds[field.index] = {id: asset.assetId, sha256: asset.sha256}; return {ok: true, method: 'cdp-file'}; }
           return {ok: false, reason: result?.error || 'cdp_upload_failed'};
         }
@@ -510,19 +550,19 @@
   }
 
   async function fillAll(options = {}) {
-    if (state.submitted) return state.counters;
+    if (state.submitted || !contentAllowed()) return state.counters;
     if (state.busy) { state.pending = true; return state.counters; }
     state.busy = true;
     const log = state.log;
     let passGeneration = state.sessionGeneration;
     try {
       if (!state.session && !await ensureSession()) return state.counters;
-      if (state.submitted) return state.counters;
+      if (state.submitted || !contentAllowed()) return state.counters;
       scan();
       const ctx = matchCtx();
       const generation = state.sessionGeneration, url = location.href, documentRoot = document.documentElement;
       passGeneration = generation;
-      const passCurrent = () => !state.submitted && state.sessionGeneration === generation && location.href === url &&
+      const passCurrent = () => contentAllowed() && !state.submitted && state.sessionGeneration === generation && location.href === url &&
         document.documentElement === documentRoot;
       const targets = state.entries.map(fieldTarget);
       const shape = targets.map(target => target.identity).join('\n');
@@ -601,7 +641,7 @@
 
   async function capture(options = {}) {
     const entries = F.scan(state.rules || {});
-    if (!entries.length) return null;
+    if (!entries.length || !contentAllowed()) return null;
     const snapshot = S.capture({
       entries: entries.map(entry => ({...entry, key: state.decisions.get(entry.field.index)?.key,
         needsConfirmation: !state.byHuman.has(entry.element) && ['pending', 'confirm'].includes(state.decisions.get(entry.field.index)?.status)})),
@@ -623,28 +663,36 @@
   }
 
   async function restore(options = {}) {
-    if (state.submitted) return;
+    if (state.submitted || !contentAllowed()) return;
+    const binding = {generation: state.sessionGeneration, humanRevision: state.humanRevision,
+      url: location.href, documentRoot: document.documentElement};
+    const eligible = () => bindingCurrent(binding);
+    const verify = () => {if (!eligible()) throw Error('复原上下文已变化，停止填写');};
     const log = state.log;
     const snapshot = options.snapshot || await send('snapshot:latest', {
       url: location.href, source: state.session?.source_domain || location.hostname,
       fingerprint: S.fingerprintFields(state.entries.map(entry => entry.field)), hours: state.settings.restore_window_hours ?? 2,
     }).catch(() => null);
+    verify();
     if (!snapshot) { if (options.announce) UI.toast(state.layer, '没有可复原的快照'); return {restored: 0}; }
     if (!state.session?.site || snapshot.site !== state.session.site || snapshot.source_domain !== state.session.source_domain) {
       throw Error('快照与当前项目或来源不匹配，不能复原');
     }
     // 等页面稳定：DOM 500ms 无变动或最多 8 秒。
     await settle();
+    verify();
     scan();
     let restored = 0, conflicts = 0, skipped = 0, missing = 0, failed = 0;
     const rounds = options.rounds ?? 3;
     for (let round = 0; round < rounds; round++) {
+      verify();
       const planned = S.plan(snapshot, state.entries, {});
       missing = planned.missing.length;
       conflicts += planned.conflicts.length;
       for (const record of planned.missing) if (record.skipped) skipped++;
       if (!planned.matched.length) break;
       for (const item of planned.matched) {
+        verify();
         const field = item.entry.field;
         const asset = record => record.asset_sha256 && (context().kit.assets || []).find(candidate =>
           candidate.assetId === record.asset_id && candidate.sha256 === record.asset_sha256);
@@ -656,12 +704,14 @@
             state.decisions.set(field.index, {status: 'pending', layer: 'restore', reason: 'asset_changed'});
             continue;
           }
-          const applied = await applyValue(item.entry, null, {asset: found});
+          const applied = await applyValue(item.entry, null, {asset: found, eligible});
+          verify();
           if (applied.ok) restored++;
           else failed++;
           continue;
         }
-        const applied = await applyValue(item.entry, item.value, {});
+        const applied = await applyValue(item.entry, item.value, {eligible});
+        verify();
         if (applied.ok) {
           restored++;
           state.decisions.set(field.index, {status: item.record.needs_confirmation ? 'pending' : 'filled',
@@ -673,12 +723,14 @@
       }
       scan();
       await BKWidgets.sleep(120);
+      verify();
     }
     state.restored = restored;
     render();
     log?.push(restored ? 'info' : 'warn', 'restore', restored ? 'restored' : 'restore_failed',
       {step: snapshot.step_index, fields: restored, conflicts, skipped, by: snapshot.by});
     await log?.flush();
+    verify();
     focusCaptcha();
     if (options.announce !== false && restored) UI.toast(state.layer, `已复原 ${restored} 项` + (conflicts ? `；${conflicts} 项与页面现值冲突，未覆盖` : ''));
     return {restored, conflicts, missing, failed};
@@ -742,6 +794,7 @@
   }
 
   async function maybeAutoNext() {
+    if (state.submitted || !contentAllowed()) return false;
     const enabled = autoNextEnabled();
     const log = state.log;
     if (!enabled) {
@@ -800,7 +853,7 @@
 
   function bindHumanInput() {
     const mark = event => {
-      if (!event.isTrusted || state.ownWriteDepth) return;
+      if (!event.isTrusted || state.ownWriteDepth || state.fileWrites.has(event.target)) return;
       state.humanRevision++;
       state.byHuman.add(event.target);
       if (event.target.type === 'file') {
@@ -813,16 +866,18 @@
     };
     document.addEventListener('input', mark, true);
     document.addEventListener('change', mark, true);
-    document.addEventListener('pointerdown', event => {
+    const humanIntent = event => {
       if (event.isTrusted && !state.ownWriteDepth) state.humanRevision++;
-    }, true);
+    };
+    document.addEventListener('pointerdown', humanIntent, true);
+    document.addEventListener('drop', humanIntent, true);
     document.addEventListener('submit', () => {
+      if (!contentAllowed()) return;
       state.submitted = true;
       state.log?.push('info', 'user', 'submit_detected', {step: state.step});
-      capture({reason: 'submit'}).finally(() => {
-        send('submitted', {data: {step: state.step}}).catch(() => {});
-
-      });
+      // 立即撤销后台在途会话，不等快照落盘再上报投稿。
+      send('submitted', {data: {step: state.step}, item: state.entryItem}).catch(() => {});
+      capture({reason: 'submit'});
     }, true);
     window.addEventListener('pagehide', () => { capture({reason: 'pagehide'}); });
     document.addEventListener('focusin', event => {
@@ -832,6 +887,7 @@
       openFieldButton(entry);
     }, true);
     document.addEventListener('keydown', event => {
+      humanIntent(event);
       if (!event.altKey) return;
       const key = event.key.toLowerCase();
       if (key === 'f' && !event.shiftKey) { event.preventDefault(); fillCurrentField(); }
@@ -911,16 +967,19 @@
     const ui = UI.createLayer();
     state.layer = ui.layer;
     state.marks = UI.createMarks(ui.layer);
+    // 监听先于会话请求，避免漏掉启动回包前的人工提交。
+    bindHumanInput();
     const mark = BKLogic.marker(location.href);
+    state.entryItem = mark?.id || null;
     if (mark) history.replaceState(history.state, '', mark.url);
     let session = null;
     try {
-      session = await send('session', {id: mark?.id, url: location.href});
+      session = await send('session', {id: mark?.id, url: location.href, authGate: loginPage()});
     } catch (error) {
       if (TOP) UI.toast(ui.layer, '连接本机服务失败：' + error.message);
     }
     if (session) {
-      adoptContext(session.context, session.submitted);
+      if (!adoptContext(session.context, session.submitted)) return false;
       state.rules = session.rules;
       state.settings = {...(session.settings || {})};
       if (session.context?.auto_next != null) state.settings.auto_next_for = session.context.auto_next;
@@ -930,22 +989,14 @@
       state.settings = await send('settings').catch(() => ({})) || {};
     }
     state.log = BKLog.create({tab: null, frame: TOP ? 0 : 1, site: state.session?.site, source: state.session?.source_domain,
-      url: location.href, level: state.settings.log_level || 'info'});
+      url: !session || loginPage() ? location.origin + location.pathname : location.href, level: state.settings.log_level || 'info'});
     BKWidgets.debug = (msg, extra) => state.log?.push('debug', 'fill', msg, extra);
     state.log.info('scan', 'page_ready', {platform: F.scan ? undefined : undefined, top: TOP});
-    if (TOP) {
-      state.bar = UI.statusBar({onAction: action => {
-        if (action === 'fill') fillAll({force: false});
-        if (action === 'ai') aiUserTrigger();
-        if (action === 'restore') restore({announce: true});
-        if (action === 'panel') send('panel:open').catch(() => {});
-      }});
-    }
+    syncFloatingWindow();
     scan();
     state.platform = state.entries[0]?.field.platform || 'generic';
     state.log.push('info', 'scan', 'scanned', {fields: state.entries.length, platform: state.platform, top: TOP});
     state.lastSignature = signature();
-    bindHumanInput();
     if (state.session && !state.submitted) {
       await restoreArchived();
       await fillAll({});
@@ -960,12 +1011,19 @@
     watch();
   }
 
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== 'local' || !changes.settings) return;
+    state.settings = {...state.settings, floating_window: changes.settings.newValue?.floating_window !== false};
+    syncFloatingWindow();
+  });
+
   chrome.runtime.onMessage.addListener((message, sender, reply) => {
     const handlers = {
+      'page:loginHold': () => {state.loginHold = !!message.held; return {held: state.loginHold};},
       // Agent 在“我已提交”之前读回页面：只建立会话，不触发自动填写。
       'page:adopt': async () => {
         if (!message.context) return {skipped: true};
-        adoptContext(message.context, message.submitted);
+        if (!adoptContext(message.context, message.submitted)) return {skipped: true};
         state.rules = message.rules || state.rules;
         state.settings = {...(message.settings || state.settings), auto_next_for: message.context.auto_next};
         state.step = message.step || 0;
@@ -977,8 +1035,8 @@
       },
       'page:session': async () => {
         // 同标签页的其它 frame 拿到会话后广播过来；采纳后立刻补填。
-        if (!message.context) return {skipped: true};
-        adoptContext(message.context, message.submitted);
+        if (!message.context || loginPage()) return {skipped: true};
+        if (!adoptContext(message.context, message.submitted)) return {skipped: true};
         state.rules = message.rules || state.rules;
         state.settings = {...(message.settings || state.settings), auto_next_for: message.context.auto_next};
         state.step = message.step || 0;
@@ -990,14 +1048,58 @@
         return {adopted: true};
       },
       'page:activate': async () => {
-        const session = await send('session', {url: location.href, site: message.site});
+        const session = await send('session', {url: location.href, site: message.site, authGate: loginPage()});
+        if (!session && loginPage()) return {loginRequired: true};
         if (!session) throw Error('这个来源拿不到资料：请从续填列表打开或先在侧边栏选项目');
-        adoptContext(session.context, session.submitted);
+        if (!adoptContext(session.context, session.submitted)) return false;
         state.rules = session.rules;
         state.settings = {...(session.settings || {}), auto_next_for: session.context?.auto_next};
         scan();
         await fillAll({});
         return {ok: true};
+      },
+      'page:batch-inspect': () => {
+        scan();
+        if (state.busy || state.aiBusy) return {hasForm: true, canSubmit: false};
+        return BKBatchPage.inspect(document, state.entries, {url: location.href, login: loginPage() || !contentAllowed(),
+          attempted: !!message.attempted, timedOut: !!message.timedOut, baseline: message.baseline,
+          decisions: state.decisions, byHuman: state.byHuman});
+      },
+      'page:batch-submit': async () => {
+        scan();
+        if (!state.session?.record?.id || state.submitted || state.busy || state.aiBusy || !contentAllowed()) throw Error('当前页面不允许自动提交');
+        // 同任务的回包会更换对象引用，授权绑定持久身份，不能把等价刷新当作换任务。
+        const binding = session => JSON.stringify([session?.site, session?.source_domain, session?.record?.id, session?.submit_url]);
+        const bound = binding(state.session), href = location.href;
+        const inspect = () => BKBatchPage.inspect(document, state.entries, {url: location.href, login: loginPage(),
+          decisions: state.decisions, byHuman: state.byHuman});
+        const check = inspect();
+        if (!check.canSubmit) throw Error(check.reason || '表单未满足批量提交条件');
+        const buttons = [...document.querySelectorAll('button,input[type=submit],[role=button]')].filter(node =>
+          F.visible(node) && !node.disabled && /^(?:submit(?:\s+(?:listing|tool|product|application))?|send(?:\s+(?:application|listing))?|publish|提交|发布)$/i.test((node.value || node.textContent || '').trim()));
+        if (buttons.length !== 1) throw Error('提交按钮不唯一，转人工核对');
+        const target = buttons[0], label = target.value || target.textContent;
+        const documentRoot = document.documentElement, buttonRoot = target.getRootNode(), form = target.form;
+        const buttonIdentity = () => JSON.stringify([target.type, target.getAttribute('formaction'), target.getAttribute('formmethod'),
+          form?.action, form?.method, target.getAttribute('aria-disabled')]);
+        const identity = buttonIdentity();
+        const fields = state.entries.map(entry => ({element: entry.element, form: entry.element.form,
+          semantic: JSON.stringify(entry.field), value: F.read(entry.element, entry.field)}));
+        const permit = await send('batch:authorize');
+        if (permit?.authorized !== true || permit.id !== state.session.record.id) throw Error('批量单次授权回执不匹配，停止提交');
+        scan();
+        if (binding(state.session) !== bound || state.submitted || state.busy || state.aiBusy || href !== location.href || !contentAllowed() ||
+            document.documentElement !== documentRoot || target.getRootNode() !== buttonRoot || target.form !== form ||
+            buttonIdentity() !== identity || !F.visible(target) || !target.isConnected || target.disabled ||
+            (target.value || target.textContent) !== label ||
+            fields.length !== state.entries.length || fields.some((old, i) => old.element !== state.entries[i].element ||
+              old.form !== state.entries[i].element.form || old.semantic !== JSON.stringify(state.entries[i].field) ||
+              old.value !== F.read(state.entries[i].element, state.entries[i].field)) || !inspect().canSubmit) {
+          throw Error('等待授权期间表单或任务改变，停止提交，请人工核对');
+        }
+        state.submitted = true;
+        target.click();
+        return {attempted: true};
       },
       'page:fill': () => fillAll({force: !!message.force}).then(count => ({count})),
       'page:fillField': async () => { await fillAll({only: message.index, force: true}); return {ok: true}; },

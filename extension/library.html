@@ -1,122 +1,36 @@
 <!doctype html>
-<html lang="zh-CN">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Fast-Backlink 外链库</title>
-<link rel="stylesheet" href="vendor/fbl/brand.css">
-<link rel="stylesheet" href="ui/app.css">
-<!-- THESIS: 平台准入与当前产品复用分开呈现，不把来源数量当成功外链。
-     OWN-WORLD: 沿用蓝白品牌、系统字体与共享控件；无新增视觉体系。
-     STORY: 选产品 → 筛选平台 → 核对历史 → 打开查看或填写，提交留给用户。
-     FIRST VIEWPORT: 窄屏先标题和产品，再搜索、两列筛选、结果；桌面扩展行宽。
-     FORM: 已明确规格的 Operate 列表，移动单列、桌面行内动作，不做概念抽签。 -->
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Fast-Backlink 外链库</title><link rel="stylesheet" href="vendor/fbl/brand.css"><link rel="stylesheet" href="ui/app.css">
+<!-- 沿用既有 Operate 界面：先选产品和筛选，再查看六列清单；批量动作固定在底部。 -->
 <style>
-  .library {max-width: 1120px; margin: auto; padding: var(--sp-4); display: flex; flex-direction: column; gap: var(--sp-4)}
-  .appbar {position: static; flex-wrap: wrap}
-  .appbar .mark {width: 28px; height: 28px; flex: none}
-  .appbar h1 {font-size: var(--fs-4)}
-  .page-actions {display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-2); width: 100%}
-  .page-actions button {justify-content: center}
-  .filters {display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-3)}
-  .filters .product, .filters .query {grid-column: 1 / -1}
-  .filters .search {min-width: 0}
-  .field, .field > *, .filters > *, .platform > * {min-width: 0}
-  .library .field > label {font-size: var(--fs-2)}
-  .library input, .library textarea, .library select {font-size: var(--fs-3)}
-  .results-head {display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2)}
-  .results-head h2 {font-size: var(--fs-4)}
-  .platform-list {border: 1px solid var(--line); border-radius: var(--r); background: var(--paper); overflow: hidden}
-  .platform {padding: var(--sp-4); border-bottom: 1px solid var(--line-2); display: grid; gap: var(--sp-3); overflow-wrap: anywhere}
-  .platform:last-child {border-bottom: 0}
-  .platform-title {display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2)}
-  .platform h3 {font-size: var(--fs-4); overflow-wrap: anywhere}
-  .platform .pill {font-size: var(--fs-1); height: auto; min-height: 22px; white-space: normal}
-  .platform-meta {display: flex; flex-wrap: wrap; gap: var(--sp-2); color: var(--ink-2); font-size: var(--fs-2)}
-  .platform-actions {display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-2)}
-  .platform-actions button {justify-content: center; white-space: normal}
-  .platform-actions button:last-child {grid-column: 1 / -1}
-  .platform details, .platform .reason {font-size: var(--fs-2)}
-  .platform summary {cursor: pointer; color: var(--ink-2); padding-block: var(--sp-2)}
-  .platform ul {margin: var(--sp-2) 0 0; padding-inline-start: var(--sp-4)}
-  .detail-body {display: grid; gap: var(--sp-2); padding-top: var(--sp-2)}
-  #notice {overflow-wrap: anywhere}
-  #action-status:empty {display: none}
-  #results {min-height: 120px}
-  #summary {font-size: var(--fs-2); color: var(--ink-2)}
-  .editor {padding: var(--sp-4); border: 1px solid var(--line); background: var(--paper); border-radius: var(--r)}
-  .editor-grid {display: grid; gap: var(--sp-3)}
-  .editor fieldset {min-width: 0; margin: 0; padding: var(--sp-3); border: 1px solid var(--line); border-radius: var(--rc)}
-  .fit-options {display: flex; flex-wrap: wrap; gap: var(--sp-2)}
-  .fit-option {display: flex; align-items: center; gap: var(--sp-2); padding: var(--sp-2); overflow-wrap: anywhere}
-  .editor .form-actions {display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-2)}
-  input[type=date] {width: 100%; min-width: 0; min-height: var(--control); border: 1px solid var(--line); border-radius: var(--rc); padding: 7px 10px; background: var(--paper); color: var(--ink)}
-  @media (min-width: 720px) {
-    .appbar {flex-wrap: nowrap}
-    .page-actions {width: auto}
-    .filters {grid-template-columns: minmax(180px, 1fr) minmax(220px, 2fr) 1fr 1fr}
-    .filters .product, .filters .query {grid-column: auto}
-    .platform {grid-template-columns: minmax(0, 1fr) 280px}
-    .platform-actions {grid-column: 2; grid-row: 1 / 5; align-self: center}
-    .platform details {grid-column: 1}
-    .editor-grid {grid-template-columns: 1fr 1fr}
-    .editor-grid .wide {grid-column: 1 / -1}
-  }
-  @media (pointer: coarse) {
-    .library button, .library select, .library input:not([type=checkbox]), .library summary, .appbar button {min-height: 44px}
-    .library input:not([type=checkbox]), .library select, .library textarea {font-size: var(--fs-4)}
-    .fit-option {min-height: 44px}
-  }
-</style>
-</head>
-<body>
-<header class="appbar">
-  <img class="mark" src="icons/icon-48.png" alt="">
-  <div class="grow"><h1>Fast-Backlink 外链库</h1><p class="muted">保留平台经验，换产品前重新核对。</p></div>
-  <div class="page-actions">
-    <button id="add" type="button"><span data-icon="plus"></span>新增平台</button>
-    <button id="export" type="button" disabled><span data-icon="download"></span>导出当前清单</button>
-  </div>
-</header>
+.library{max-width:1280px;margin:auto;padding:24px;display:grid;gap:16px}.library>*,.table-wrap{min-width:0}.appbar{position:static;flex-wrap:wrap}.mark{width:28px;height:28px}.actions,.pager,.selection,.batch-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.filters{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.field{min-width:0;display:grid;gap:4px}.field>*{min-width:0;width:100%}.query{grid-column:span 2}.table-wrap{overflow:auto;border:1px solid var(--line);border-radius:var(--r);background:var(--paper)}table{width:100%;min-width:800px;border-collapse:collapse}th,td{text-align:left;padding:12px;border-bottom:1px solid var(--line-2)}th{font-weight:600;background:var(--bg)}td small{display:block;color:var(--ink-2)}.selected-status{color:var(--ok)}.stale{color:var(--ink-3)}.batch-bar{position:sticky;bottom:8px;padding:12px;background:var(--paper);border:1px solid var(--line);border-radius:var(--r)}.batch-bar select{max-width:160px}.editor,.workflow{padding:16px;border:1px solid var(--line);border-radius:var(--r);display:grid;gap:12px}.editor-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;border:0;padding:0}.wide{grid-column:1/-1}.empty{padding:24px}.task{padding:12px 0;border-bottom:1px solid var(--line)}.task p{overflow-wrap:anywhere}dialog{background:var(--paper);color:var(--ink);border:1px solid var(--line);border-radius:var(--r);padding:24px;max-width:min(520px,calc(100% - 32px))}dialog::backdrop{background:rgb(0 0 0 / .4)}pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:260px;overflow:auto}button,input,select,textarea{font:inherit}input[type=checkbox]{width:18px;height:18px;vertical-align:middle}button{white-space:normal}.pager{justify-content:flex-end}.batch-bar[hidden],section[hidden],dialog[hidden]{display:none}@media(max-width:700px){input,select,textarea{font-size:16px}.library{padding:12px}.filters,.editor-grid{grid-template-columns:1fr 1fr}.actions{width:100%}.actions button{flex:1 1 40%}.query{grid-column:1/-1}}@media(max-width:370px){.filters,.editor-grid{grid-template-columns:minmax(0,1fr)}.wide,.query{grid-column:auto}.batch-bar>*{max-width:100%}}
+.table-wrap .actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));min-width:176px;align-items:stretch}
+.table-wrap .actions button{width:100%;height:100%;min-height:36px}
+.editor input,.editor select,.editor textarea{font-size:16px}
+</style></head><body>
+<header class="appbar"><img class="mark" src="icons/icon-48.png" alt=""><div class="grow"><h1>Fast-Backlink 外链库</h1><p class="muted">选产品，核对提交状态，再批量处理。</p></div><div class="actions"><button id="add">新增平台</button><button id="import-open">导入文件</button><button id="export" disabled>导出筛选结果 CSV</button><button id="manual-open">待人工 0</button><button id="reload">刷新</button></div></header>
 <main class="library">
-  <section class="filters" aria-label="筛选外链平台">
-    <div class="field product"><label for="site">目标产品</label><select id="site"><option value="">未选择产品</option></select></div>
-    <div class="field query"><label for="search">搜索平台</label><div class="search"><span data-icon="search"></span><input id="search" type="search" placeholder="域名或提交地址" autocomplete="off"></div></div>
-    <div class="field"><label for="status">状态</label><select id="status"><option value="all">全部状态</option><option value="confirmed">已确认可投的平台</option><option value="ready">当前产品可复用</option><option value="needs_review">需要核对</option><option value="already_submitted">当前产品已投 / 结果待核</option><option value="blocked">不可复用</option></select></div>
-    <div class="field"><label for="scenario">类型</label><select id="scenario"><option value="">全部类型</option><option value="directory">目录</option><option value="launch">Launch</option><option value="roundup">Roundup</option><option value="resource">资源页</option><option value="community">社区（需批准）</option><option value="comment">评论（需批准）</option><option value="producthunt">Product Hunt（需批准）</option><option value="github">GitHub（禁止自动投）</option><option value="paid">付费渠道（禁止自动投）</option></select></div>
-  </section>
-  <p id="product-hint" class="muted"></p>
-  <div id="notice" class="banner err" role="alert" hidden></div>
-  <p id="action-status" class="muted" role="status" aria-live="polite"></p>
-  <section id="editor" class="editor stack" aria-labelledby="editor-heading" hidden>
-    <h2 id="editor-heading">新增平台</h2>
-    <p class="muted">只记录你核实过的信息。标记“可投”是平台准入结论，不代表新产品自动适配。</p>
-    <form id="record-form" class="stack">
-      <fieldset id="record-fields" class="editor-grid">
-        <legend class="sr-only">平台资料</legend>
-        <div class="field"><label for="record-domain">平台域名（必填）</label><input id="record-domain" type="text" placeholder="directory.example" required maxlength="253" autocomplete="off"></div>
-        <div class="field"><label for="record-url">提交地址（必填）</label><input id="record-url" type="url" placeholder="https://directory.example/submit" required autocomplete="off"></div>
-        <div class="field"><label for="record-scenario">类型</label><select id="record-scenario"><option value="">待核实</option><option value="directory">目录</option><option value="launch">Launch</option><option value="roundup">Roundup</option><option value="resource">资源页</option><option value="community">社区（需批准）</option><option value="comment">评论（需批准）</option><option value="producthunt">Product Hunt（需批准）</option><option value="github">GitHub（禁止自动投）</option><option value="paid">付费渠道（禁止自动投）</option></select></div>
-        <div class="field"><label for="record-admission">平台准入</label><select id="record-admission"><option value="待核实">待核实</option><option value="可投">已人工确认可投</option><option value="不做">不可投 / 不做</option></select></div>
-        <div class="field"><label for="record-dr">Ahrefs DR</label><input id="record-dr" type="number" min="0" max="100" step="0.1" placeholder="未核实时留空" inputmode="decimal"></div>
-        <div class="field"><label for="record-dr-date">DR 核验日期</label><input id="record-dr-date" type="date"></div>
-        <div class="field"><label for="record-fee">费用</label><select id="record-fee"><option value="">待核实</option><option value="free">免费</option><option value="paid">付费</option></select></div>
-        <div class="field"><label for="record-backlink">回链要求</label><select id="record-backlink"><option value="">待核实</option><option value="false">不要求回链</option><option value="true">要求回链</option></select></div>
-        <fieldset class="wide"><legend>明确适配的产品</legend><div id="fit-options" class="fit-options"></div><p class="muted">不默认勾选当前产品。历史使用过不代表仍然适配；未勾选即未明确确认。</p></fieldset>
-        <div class="field wide"><label for="record-note">核实依据与备注</label><textarea id="record-note" rows="3" maxlength="4000" placeholder="例如准入条件、规则页面、需要人工处理的步骤"></textarea></div>
-      </fieldset>
-      <p id="form-status" role="status" aria-live="polite" class="muted"></p>
-      <div class="form-actions"><button id="cancel-edit" type="button">收起表单</button><button id="save" type="submit" class="primary">保存平台</button></div>
-    </form>
-  </section>
-  <section aria-labelledby="results-heading" class="stack">
-    <div class="results-head"><h2 id="results-heading">平台清单</h2><button id="reload" type="button"><span data-icon="refresh"></span>刷新</button></div>
-    <p id="summary" aria-live="polite">读取中…</p>
-    <div id="results" aria-busy="true"></div>
-  </section>
-  <p class="muted">“平台已确认可投”不等于适合当前产品。填写不代表受理或外链上线；最终提交、验证码与授权由你手动完成。</p>
+<section class="filters" aria-label="筛选外链平台">
+<div class="field"><label for="site">目标产品</label><select id="site"><option value="">未选择产品</option></select></div>
+<div class="field query"><label for="search">搜索域名或链接</label><input id="search" type="search" autocomplete="off"></div>
+<div class="field"><label for="scenario">外链类型</label><select id="scenario"></select></div>
+<div class="field"><label for="fee">付费类型</label><select id="fee"></select></div>
+<div class="field"><label for="status">提交状态</label><select id="status"><option value="all">全部状态</option><option value="unsubmitted">未提交</option><option value="submitted">已提交</option><option value="processing">处理中</option></select></div>
+<div class="field"><label for="dr-min">DR 至少</label><input id="dr-min" type="number" min="0" max="100"></div>
+<div class="field"><label for="dr-max">DR 至多</label><input id="dr-max" type="number" min="0" max="100"></div>
+<div class="field"><label for="sort">排序</label><select id="sort"><option value="dr">DR 从高到低</option><option value="submit_count">提交产品数从高到低</option><option value="last_submitted_at">最近提交时间</option></select></div>
+<div class="field"><label for="page-size">每页</label><select id="page-size"><option>20</option><option selected>50</option><option>100</option></select></div>
+</section>
+<p id="product-hint" class="muted">批量模式会自动提交；单页“打开并填写”不自动提交。验证码、登录、邮箱验证和付款转待人工。</p>
+<div id="notice" class="banner err" role="alert" hidden></div><p id="action-status" role="status" aria-live="polite"></p>
+<section id="editor" class="editor" hidden><h2 id="editor-heading">新增平台</h2><form id="record-form" class="stack"><fieldset id="record-fields" class="editor-grid"><legend class="sr-only">平台资料</legend>
+<div class="field"><label for="record-domain">平台域名</label><input id="record-domain" required></div><div class="field"><label for="record-url">提交直达链接</label><input id="record-url" type="url" required></div><div class="field"><label for="record-scenario">外链类型</label><select id="record-scenario"></select></div><div class="field"><label for="record-fee">付费类型</label><select id="record-fee"></select></div><div class="field wide"><label for="record-note">备注</label><textarea id="record-note" rows="3" maxlength="10000"></textarea></div></fieldset><p id="form-status" role="status"></p><div class="actions"><button id="cancel-edit" type="button">收起</button><button id="save" type="submit" class="primary">保存平台</button></div></form></section>
+<section id="importer" class="workflow" hidden><h2>导入 CSV / TXT</h2><p>CSV 列：url,type,fee,note；TXT 每行一个链接。按域名去重，只补空字段，其他链接追加为备用。</p><div class="actions"><button id="template">下载 CSV 模板</button><input id="import-file" type="file" accept=".csv,.txt" aria-label="选择外链文件"><button id="import-preview">预览</button><button id="import-confirm" class="primary" disabled>确认导入并补查 DR</button></div><pre id="import-status" role="status"></pre></section>
+<section aria-label="平台清单"><div class="selection"><p id="summary" role="status">读取中…</p><button id="select-all" hidden>选择全部筛选结果</button><button id="clear-selection" hidden>清空选择</button></div><div id="results" aria-busy="true"></div><nav class="pager" aria-label="分页"><button id="prev">上一页</button><span id="page-label"></span><button id="next">下一页</button></nav></section>
+<section id="batch-panel" class="workflow" hidden><h2>批量任务</h2><div id="batch-progress" role="status"></div><div id="batch-list"></div></section>
+<section id="manual-panel" class="workflow" hidden><h2>待人工集中处理</h2><p class="muted">已存档可重新打开并复原；未存档请保留原标签。结果未知禁止自动重试。</p><div id="manual-list"></div></section>
+<div id="bulk-bar" class="batch-bar" hidden><b id="selected-count"></b><button id="batch-start" class="primary">批量发外链</button><select id="bulk-type" aria-label="修改外链类型"></select><button id="change-type">修改类型</button><select id="bulk-fee" aria-label="修改付费类型"></select><button id="change-fee">修改付费</button><button id="refresh-dr">刷新 DR</button><button id="mark">标记已提交</button><button id="unmark">撤销标记</button><button id="export-selected">导出所选</button><button id="delete-selected">删除</button></div>
 </main>
-<script src="ui/icons.js"></script>
-<script src="library.js"></script>
-</body>
-</html>
+<dialog id="delete-dialog"><h2>彻底删除平台</h2><p id="delete-message"></p><p>历史 ledger 保留，重新导入仍会识别已提交产品。</p><div class="actions"><button id="delete-cancel">取消</button><button id="delete-confirm">继续确认</button></div></dialog>
+<dialog id="batch-dialog"><h2>批量发外链</h2><div class="stack"><label for="batch-site">产品（需要已有资料包）</label><select id="batch-site"></select><label for="batch-size">每批标签数量（5–20）</label><input id="batch-size" type="number" min="5" max="20" value="10"><button id="batch-preview">检查资格</button><pre id="batch-preview-status" role="status"></pre><div class="actions"><button id="batch-cancel">取消</button><button id="batch-confirm" class="primary" disabled>开始自动提交</button></div></div></dialog>
+<script src="ui/icons.js"></script><script src="library.js"></script></body></html>

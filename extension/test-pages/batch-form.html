@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Synthetic batch form</title></head>
+<body><main><h1>Synthetic directory submission</h1><p id="instructions">Local regression fixture only.</p>
+<form><label>Product name <input id="product-name" name="product_name" required></label><label>Website URL <input id="product-url" name="website" type="url" required></label><div id="verification"></div><button type="submit">Submit listing</button></form><div id="feedback" role="status"></div></main>
+<script>
+const mode = new URL(location.href).searchParams.get('mode') || 'success';
+if (mode === 'manual') document.querySelector('#verification').innerHTML = '<label>CAPTCHA <input name="captcha" autocomplete="off"></label>';
+if (mode === 'step1') {
+  const next = document.querySelector('button');
+  next.type = 'button'; next.textContent = 'Next';
+  next.addEventListener('click', () => {location.href = '?mode=manual&step=2' + location.hash;});
+}
+if (mode === 'unknown') document.querySelector('#instructions').textContent = 'Your listing has not been submitted. How to get submitted to our directory.';
+document.querySelector('form').addEventListener('submit', event => {
+  event.preventDefault();
+  document.body.dataset.submissions = String(Number(document.body.dataset.submissions || 0) + 1);
+  if (mode === 'success') location.href = '/test-pages/batch-thank-you.html';
+  if (mode === 'failed') {const feedback = document.querySelector('#feedback'); feedback.setAttribute('role', 'alert'); feedback.textContent = 'Invalid listing URL';}
+});
+</script></body></html>

@@ -52,6 +52,15 @@
   .loading {display: flex; flex-direction: column; gap: 8px}
   .settings-group {display: flex; flex-direction: column; gap: 0; border: 1px solid var(--line); border-radius: var(--r); background: var(--paper); padding: 0 12px; margin-bottom: 10px}
   .settings-group h3 {font-size: 11px; color: var(--ink-3); letter-spacing: .4px; text-transform: uppercase; padding: 10px 0 2px}
+  #ai-config {padding-bottom: var(--sp-3); gap: var(--sp-3)}
+  #ai-config h3 {font-size: var(--fs-3); color: var(--ink); letter-spacing: normal}
+  #ai-config .ai-actions {display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-2)}
+  #ai-config .ai-actions button {justify-content: center}
+  #ai-config .switch {margin: 0}
+  #ai-config summary {cursor: pointer; color: var(--ink-2); font-size: var(--fs-2)}
+  #ai-config [role=status] {overflow-wrap: anywhere; font-size: var(--fs-2)}
+  #ai-config [data-tone=ok] {color: var(--ok)}
+  #ai-config [data-tone=error] {color: var(--bad)}
   .inline-num {display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 9px 0; border-bottom: 1px solid var(--line-2); font-size: 12px}
   .inline-num:last-child {border-bottom: 0}
   .inline-num input {width: 72px; min-height: var(--control); padding: 4px 6px; font-size: var(--fs-2)}
@@ -125,6 +134,8 @@
 </dialog>
 <script src="logic.js"></script>
 <script src="ui/icons.js"></script>
+<script src="lib/ai-settings.js"></script>
+<script src="lib/auth-panel.js"></script>
 <script src="panel.js"></script>
 </body>
 </html>
