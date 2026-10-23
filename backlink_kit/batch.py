@@ -51,7 +51,9 @@ class BatchStore:
         if site not in self.conf['sites']:
             raise ValueError('select_product')
         kit, _ = kits.load(self.conf, site)
-        missing = [key for key in ('name', 'url', 'tagline', 'short_description', 'description', 'email') if not c.kit_text(kit, key)]
+        profile = kits.profile(self.conf)
+        missing = [key for key in ('name', 'url', 'tagline', 'short_description', 'description', 'email')
+                   if not (c.kit_text(kit, key) or c.kit_text(profile, key))]
         names = v2.selected(self.conf, data)
         rows, eligible, skipped = history_rows(self.conf), [], []
         for name in names:
@@ -199,6 +201,12 @@ class BatchStore:
                 self.update_handoff(job, batch)
                 raise ValueError('batch_lease_expired')
             if batch['state'] != 'running' or job.get('attempted_at'):
+                raise ValueError('submission_not_authorized_or_already_attempted')
+            from .library import history_rows
+            # 领取后也可能出现其他提交回执；只排除本任务自身的运行占位。
+            rows = [r for r in history_rows(self.conf) if r.get('id') != job['id']]
+            record = self.sources.load(job['domain'])
+            if v2.submissions(record, rows, batch['site'])['submission_status'] != 'unsubmitted':
                 raise ValueError('submission_not_authorized_or_already_attempted')
             job['attempted_at'] = handoff.stamp()
             self.save(batch)

@@ -8,7 +8,7 @@ import subprocess
 import sys
 import time
 
-from backlink_kit import core as c, sources as s, library, library_v2 as v2
+from backlink_kit import core as c, sources as s, kits, library, library_v2 as v2
 from backlink_kit.batch import BatchStore
 from tests.support import fixture_config
 
@@ -42,6 +42,40 @@ class PureLibraryV2Tests(TestCase):
         for query in ({'page':0},{'page_size':30},{'dr_min':'nan'},{'fee':'bogus'},{'sort':'bogus'}):
             with self.assertRaises(ValueError): v2.paginate(rows, query)
 
+    def test_legacy_submission_facts_count_once_without_claiming_link_is_live(self):
+        for status in ('submitted', 'public', 'alive', 'live', 'removed', 'ALIVE', 'REMOVED'):
+            for origin in ('ledger', 'history'):
+                with self.subTest(status=status, origin=origin):
+                    record = s.new_source('legacy.example')
+                    receipt = dict(source_domain=record['domain'], site='ProbeKits', status=status,
+                                   submitted_at='2026-10-20')
+                    rows = [receipt] if origin == 'ledger' else []
+                    if origin == 'history':
+                        record['history'].append(receipt)
+                    self.assertTrue(s.submitted(record, 'probekits', rows))
+                    stats = v2.submissions(record, rows + rows, 'probekits')
+                    self.assertEqual(stats['submission_status'], 'submitted')
+                    self.assertEqual(stats['submit_count'], 1)
+                    self.assertEqual(stats['submitted_products'], [dict(site='probekits', date='2026-10-20')])
+                    self.assertEqual(stats['last_submitted_at'], '2026-10-20')
+                    self.assertEqual(v2.submissions(record, rows, 'raumlens')['submission_status'], 'unsubmitted')
+
+    def test_processing_and_failed_history_do_not_inflate_success_counts(self):
+        for status in sorted(s.EXCLUDED | v2.PROCESSING | {'failed', 'abandoned', 'cancelled'}):
+            if status in ('submitted', 'public', 'alive', 'live', 'removed'):
+                continue
+            for attempted in (False, True):
+                with self.subTest(status=status, attempted=attempted):
+                    record = s.new_source('boundary.example')
+                    record['history'] = [dict(site='probekits', status=status)]
+                    if attempted:
+                        record['history'][0]['attempted_at'] = '2026-10-20'
+                    stats = v2.submissions(record, [], 'probekits')
+                    expected = 'processing' if status in v2.PROCESSING else 'unsubmitted'
+                    self.assertEqual(stats['submission_status'], expected)
+                    self.assertEqual(stats['submit_count'], 0)
+                    self.assertEqual(stats['submitted_products'], [])
+
 
 class LibraryV2StorageTests(TestCase):
     def setUp(self):
@@ -55,6 +89,33 @@ class LibraryV2StorageTests(TestCase):
         data.update(extra)
         return self.store.update(name, 'screen', data, s.evidence('synthetic:v2',by='manual'))
 
+    def receipt(self, name, status, origin):
+        row = dict(source_domain=name, site='probekits', status=status, submitted_at='2026-10-20')
+        if origin == 'ledger':
+            fields, rows = c.read_csv(self.conf['ledger'])
+            c.write_csv(self.conf['ledger'], s.unique(fields + list(row)), rows + [row])
+        else:
+            record = self.store.load(name)
+            record['history'].append(row)
+            c.atomic_json(self.store.root / (name + '.json'), record)
+
+    def test_legacy_receipts_block_batch_preview_and_start_for_both_history_sources(self):
+        for origin in ('ledger', 'history'):
+            for status in ('submitted', 'public', 'alive', 'live', 'removed', 'ALIVE', 'REMOVED'):
+                with self.subTest(origin=origin, status=status):
+                    name = origin + '-' + status.lower() + '.example'
+                    self.source(name)
+                    self.receipt(name, status, origin)
+                    data = dict(site='probekits', domains=[name])
+                    preview = self.batch.preview(data)
+                    self.assertEqual(preview['eligible'], [])
+                    self.assertEqual(preview['skipped'], [dict(domain=name, reason='该产品已提交或处理中')])
+                    with self.assertRaisesRegex(ValueError, 'no_eligible_platforms'):
+                        self.batch.start(data)
+                    self.assertEqual(self.batch.rows(), [])
+                    row = library.listing(self.conf, dict(site='probekits', domain=name))['items'][0]
+                    self.assertEqual((row['submission_status'], row['submit_count']), ('submitted', 1))
+
     def test_paged_listing_and_product_status(self):
         for i in range(55): self.source('p'+str(i)+'.example')
         self.assertEqual(len(library.listing(self.conf, {})['items']),50)
@@ -63,6 +124,84 @@ class LibraryV2StorageTests(TestCase):
         result = library.listing(self.conf, dict(site='probekits',submission_status='submitted'))
         self.assertEqual(result['total'],1)
         self.assertEqual(result['items'][0]['submit_count'],1)
+
+    def test_batch_email_preflight_uses_product_or_shared_identity_without_copying(self):
+        cases = [
+            (None, {'value': 'shared@example.test'}, True),
+            ({'value': ''}, {'variants': {'19': 'shared@example.test'}}, True),
+            ({'value': 'product@example.test'}, None, True),
+            ({'value': 'product@example.test'}, {'value': ''}, True),
+            (None, None, False),
+            ({'value': ''}, {'value': ''}, False),
+        ]
+        for index, (product_email, shared_email, eligible) in enumerate(cases):
+            with self.subTest(product_email=product_email, shared_email=shared_email):
+                name = 'email-' + str(index) + '.example'
+                self.source(name)
+                kit, _ = kits.load(self.conf, 'probekits')
+                kit['fields'].pop('email', None)
+                if product_email is not None:
+                    kit['fields']['email'] = product_email
+                path = kits.save(self.conf, 'probekits', kit)
+                kits.save_profile(self.conf, dict(fields={} if shared_email is None else {'email': shared_email}))
+                profile_path = kits.profile_path(self.conf)
+                before = (path.read_bytes(), profile_path.read_bytes())
+                loaded, directory = kits.load(self.conf, 'probekits')
+                profile = kits.profile(self.conf)
+                self.assertEqual(kits.check(loaded, directory, profile)[0], [])
+                self.assertEqual(bool(c.kit_text(loaded, 'email') or c.kit_text(profile, 'email')), eligible)
+                data = dict(site='probekits', domains=[name])
+                preview = self.batch.preview(data)
+                self.assertEqual([row['domain'] for row in preview['eligible']], [name] if eligible else [])
+                if eligible:
+                    self.assertEqual(preview['skipped'], [])
+                    batch = self.batch.start(data)
+                    self.assertEqual([job['domain'] for job in batch['jobs']], [name])
+                    job = self.batch.claim({'owner': 'a' * 32})[0]
+                    self.assertTrue(self.batch.attempt(job)['authorized'])
+                else:
+                    self.assertEqual(preview['skipped'], [dict(domain=name, reason='产品资料缺必填项：email')])
+                    with self.assertRaisesRegex(ValueError, 'no_eligible_platforms'):
+                        self.batch.start(data)
+                self.assertEqual((path.read_bytes(), profile_path.read_bytes()), before)
+
+    def test_attempt_rechecks_receipts_added_after_claim_without_marking_attempt(self):
+        for origin in ('ledger', 'history'):
+            for status in ('submitted', 'public', 'alive', 'live', 'removed', 'unknown', 'pending'):
+                with self.subTest(origin=origin, status=status):
+                    name = 'late-' + origin + '-' + status + '.example'
+                    self.source(name)
+                    self.batch.start(dict(site='probekits', domains=[name]))
+                    job = self.batch.claim({'owner': 'a' * 32})[0]
+                    self.receipt(name, status, origin)
+                    before = self.batch.path(job['batch_id']).read_bytes()
+                    with self.assertRaisesRegex(ValueError, 'submission_not_authorized_or_already_attempted'):
+                        self.batch.attempt(job)
+                    self.assertEqual(self.batch.path(job['batch_id']).read_bytes(), before)
+
+    def test_attempt_allows_own_running_history_and_confirmed_failed_receipts(self):
+        for origin in ('ledger', 'history'):
+            name = 'retry-' + origin + '.example'
+            self.source(name)
+            self.receipt(name, 'failed', origin)
+            self.batch.start(dict(site='probekits', domains=[name]))
+            job = self.batch.claim({'owner': 'a' * 32})[0]
+            self.assertTrue(self.batch.attempt(job)['authorized'])
+            with self.assertRaisesRegex(ValueError, 'already_attempted'):
+                self.batch.attempt(job)
+
+    def test_migration_copies_all_legacy_submission_facts_from_ledger(self):
+        name = 'legacy-migration.example'
+        self.source(name)
+        for status in ('submitted', 'public', 'alive', 'live', 'removed', 'ALIVE', 'REMOVED'):
+            self.receipt(name, status, 'ledger')
+        before = Path(self.conf['ledger']).read_bytes()
+        report = v2.migration(self.conf, apply=True)
+        saved = self.store.load(name)
+        self.assertEqual(len(saved['history']), 7)
+        self.assertEqual((report['submitted_platforms'], report['submitted_products']), (1, 1))
+        self.assertEqual(saved['submission_summary']['submit_count'], 1)
+        self.assertEqual(Path(self.conf['ledger']).read_bytes(), before)
 
     def test_migration_script_dry_run_and_apply_preserve_history(self):
         self.source('migration.example', scenario='outreach', cost='Regular free; Featured 9.99 USD optional')

@@ -13,8 +13,9 @@ from . import core as c, sources as s
 TYPES = {'directory': '目录', 'launch': 'Launch', 'resource': '资源页', 'roundup': 'Roundup',
          'community': '社区', 'comment': '评论', 'producthunt': 'Product Hunt', 'other': '其他'}
 FEES = {'free': '免费', 'freemium': '免费+付费加速', 'paid': '付费', 'unknown': '未知'}
-SUCCESS = {'submitted', 'public', 'live'}
 PROCESSING = {'unknown', 'pending', '结果未知', '待核实', '续填中', '待处理', '待授权', '待人工', '需重新备料'}
+# 已投稿事实沿用来源库防重口径；removed 也不代表可以重投。
+SUCCESS = s.EXCLUDED - PROCESSING
 EXPORT_FIELDS = ['url', 'domain', 'type', 'fee', 'dr', 'dr_date', 'status', 'submit_count', 'submitted_products', 'note']
 
 
@@ -44,7 +45,7 @@ def submissions(record, rows, site=''):
         name = str(row.get('site', '')).lower()
         if not re.fullmatch(r'[a-z][a-z0-9-]*', name):
             continue
-        status = row.get('status')
+        status = str(row.get('status') or '').lower()
         date = next((str(c.day(row.get(k))) for k in ('completed_at', 'submitted_at', 'first_public_at', 'created_at') if c.day(row.get(k))), '')
         if status in SUCCESS:
             successes[name] = max(successes.get(name, ''), date)
@@ -345,7 +346,7 @@ def migration(conf, apply=False):
             original = '原费用：' + str(old_fee)
             if old_fee not in FEES and original not in note:
                 record['basic']['library_note'] = s.claim((note + '\n' + original).strip(), proof)
-            record['history'] += [dict(r) for r in rows if c.domain(r.get('source_domain', '')) == record['domain'] and r.get('status') in SUCCESS and r not in record['history']]
+            record['history'] += [dict(r) for r in rows if c.domain(r.get('source_domain', '')) == record['domain'] and str(r.get('status') or '').lower() in SUCCESS and r not in record['history']]
             record['submission_summary'] = stats
             c.atomic_json(store.root / (record['domain'] + '.json'), record)
     return report
