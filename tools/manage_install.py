@@ -200,6 +200,9 @@ def install(args):
         executable.parent.mkdir(parents=True, exist_ok=True)
         executable.write_text(text)
         executable.chmod(0o755)
+        current = (prefix / 'current').resolve() if (prefix / 'current').exists() else None
+        if current is not None and current != release:
+            meta['previous'] = current.name
         switch(prefix, release)
         meta.update(provenance)
         write_json(prefix / '.installation.json', meta)

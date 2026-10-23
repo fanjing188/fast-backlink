@@ -10,7 +10,6 @@ import shutil
 import struct
 import tempfile
 import zlib
-from urllib.parse import urlsplit
 
 from . import kits
 from .core import atomic_json, config_lock, domain, load_config, protected
@@ -119,10 +118,7 @@ def _import_product(config_path, bundle, *, apply=False, draft=False):
     if site in conf['sites'] or target.exists() or target.is_symlink():
         raise ValueError('站点或目录已存在；不会覆盖现有产品')
     data: dict = kits.normalize(raw, site)
-    url = kits.text_of(data['fields'].get('url'))
-    parts = urlsplit(url)
-    if parts.scheme not in ('http', 'https') or not parts.hostname or parts.username or parts.password or parts.query or parts.fragment:
-        raise ValueError('产品首页需要不带凭据、查询或片段的 HTTP(S) 地址')
+    url = kits.homepage(kits.text_of(data['fields'].get('url')))
     data['fields']['domain'] = kits.variant(domain(url))
     data['fields']['url_bare'] = kits.variant(url.split('://', 1)[1].rstrip('/'))
     names, ids = set(), set()

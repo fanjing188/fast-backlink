@@ -10,10 +10,18 @@ import mimetypes
 import re
 import shutil
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from .core import atomic_json, protected  # noqa: F401  (protected 供上层复用)
 
 SCHEMA_VERSION = 2
+
+
+def homepage(url):
+    parts = urlsplit(url)
+    if parts.scheme not in ('http', 'https') or not parts.hostname or parts.username or parts.password or parts.query or parts.fragment:
+        raise ValueError('产品首页需要不带凭据、查询或片段的 HTTP(S) 地址')
+    return url
 
 # 文本字段全集：A 基本信息、B 链接、D 长文本模板（plan §1.2）。
 TEXT_KEYS = (

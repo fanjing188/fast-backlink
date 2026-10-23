@@ -155,6 +155,7 @@ def kits_command(args,conf):
         import re
         if not args.site or not re.fullmatch('[a-z][a-z0-9-]*',args.site):
             raise ValueError('站点键只允许小写字母、数字和连字符')
+        homepage=kits_module.homepage(args.url) if args.url else ''
         with config_lock(args.config):
             conf=load_config(args.config)
             if args.site in conf['sites']:
@@ -165,11 +166,15 @@ def kits_command(args,conf):
             template['source']='待补充事实来源'
             for key in sorted({v for v in rules('kit-fields').values()}|set(kits_module.REQUIRED_KEYS)):
                 template['fields'][key]=kits_module.variant('')
+            if homepage:
+                template['fields'].update(url=kits_module.variant(homepage),domain=kits_module.variant(domain(homepage)),
+                                          url_bare=kits_module.variant(homepage.split('://',1)[1].rstrip('/')))
             kits_module.save(conf,args.site,template)
             raw=json_file(args.config)
-            raw['sites'][args.site]={'domain':'','kit':args.site+'/kit.json'}
+            raw['sites'][args.site]={'domain':domain(homepage) if homepage else '','kit':args.site+'/kit.json'}
             atomic_json(args.config,raw)
-        print(json.dumps({'site':args.site,'template':str(directory/'kit.json'),'message':'补齐事实、图片和config中的domain，再运行 kits --check'},ensure_ascii=False))
+        message='已登记网址；启动或重启服务后，在素材库补齐名称、介绍和图片。' if homepage else '补齐事实、图片和config中的domain，再运行 kits --check'
+        print(json.dumps({'site':args.site,'template':str(directory/'kit.json'),'message':message},ensure_ascii=False))
         return
     if args.kits_action=='migrate':
         report=kits_module.migrate(conf,apply=args.apply)
@@ -453,7 +458,7 @@ def main(argv=None):
     p=commands.add_parser('fillplan');p.add_argument('--snapshot',required=True);p.add_argument('--site',required=True);p.add_argument('--output');p.add_argument('--source-domain');p.add_argument('--set',action='append',default=[])
     p=commands.add_parser('verify');p.add_argument('--dry-run',action='store_true');p.add_argument('--apply',action='store_true');p.add_argument('--offline',action='store_true');p.add_argument('--list-only',action='store_true');p.add_argument('--timeout',type=float,default=10)
     p=commands.add_parser('outreach');p.add_argument('--queue');p.add_argument('--snapshot')
-    p=commands.add_parser('kits');p.add_argument('kits_action',nargs='?',choices=['new','check','migrate','summary']);p.add_argument('site',nargs='?');p.add_argument('--check',action='store_true');p.add_argument('--apply',action='store_true')
+    p=commands.add_parser('kits');p.add_argument('kits_action',nargs='?',choices=['new','check','migrate','summary']);p.add_argument('site',nargs='?');p.add_argument('--url',help='新产品首页，自动登记域名');p.add_argument('--check',action='store_true');p.add_argument('--apply',action='store_true')
     p=commands.add_parser('source');sub=p.add_subparsers(dest='source_action',required=True)
     p=sub.add_parser('import');p.add_argument('--dry-run',action='store_true');p.add_argument('--apply',action='store_true')
     p=sub.add_parser('show');p.add_argument('domain')
