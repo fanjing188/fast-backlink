@@ -54,3 +54,26 @@ test('实际adoptContext拒绝同来源的无ID降级，同时允许显式不同
   assert.equal(sandbox.state.session.site,'other');
   assert.equal(sandbox.state.submitted,false);
 });
+
+test('真实worker夹具的项目初始化不被在途frame写回覆盖', async () => {
+  const h = harness();
+  const source = fs.readFileSync(path.join(__dirname, '../e2e/session-binding.test.mjs'), 'utf8');
+  const hook = source.match(/const hook = `([\s\S]*?)`;/)[1];
+  vm.runInContext(hook + '\nglobalThis.fixtureWriteTab = writeTab;', h.sandbox);
+  let enter, release;
+  const reached = new Promise(resolve => {enter = resolve;});
+  const held = new Promise(resolve => {release = resolve;});
+  const originalSet = h.sandbox.chrome.storage.session.set;
+  let first = true;
+  h.sandbox.chrome.storage.session.set = async patch => {
+    if (first) {first = false; enter(); await held;}
+    return originalSet(patch);
+  };
+  const frame = h.sandbox.fixtureWriteTab(1, {frames: {0: {top: true}}});
+  await reached;
+  const seed = h.sandbox.__fixtureSetSite(1, 'probekits');
+  release();
+  await Promise.all([frame, seed]);
+  assert.equal(h.sessionStore['tab:1'].site, 'probekits');
+  assert.equal(h.sessionStore['tab:1'].frames[0].top, true);
+});

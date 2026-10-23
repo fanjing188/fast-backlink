@@ -25,6 +25,7 @@ globalThis.fetch = async (...args) => {
   return response;
 };
 globalThis.__fixtureSession = (tabId, message) => buildSession(tabId, message, {frameId: 0}, {wait: true});
+globalThis.__fixtureSetSite = (tabId, site) => writeTab(tabId, {site}, {control: true});
 `;
       await writeFile(path.join(copy, 'background.js'), background + hook);
       assert.equal(await readFile(path.join(copy, 'content.js'), 'utf8'), await readFile(path.join(EXTENSION, 'content.js'), 'utf8'));
@@ -40,7 +41,7 @@ globalThis.__fixtureSession = (tabId, message) => buildSession(tabId, message, {
       await page.waitForFunction(() => !!document.documentElement.dataset.bkStatus);
       const tabId = await browser.worker.evaluate(async url => {
         const tab = (await chrome.tabs.query({})).find(tab => tab.url === url);
-        await chrome.storage.session.set({['tab:' + tab.id]: {site: 'probekits'}});
+        await globalThis.__fixtureSetSite(tab.id, 'probekits');
         return tab.id;
       }, url);
       const stale = browser.worker.evaluate(({tabId, url}) => globalThis.__fixtureSession(tabId, {url}), {tabId, url});
