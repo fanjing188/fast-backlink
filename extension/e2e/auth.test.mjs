@@ -51,6 +51,25 @@ test('明确授权后同页Google登录，重新识别并填写，最终投稿�
   } finally {await page.close();}
 });
 
+test('只写Google的登录按钮可以接续，普通Google链接不作为登录入口', async () => {
+  const target = origin + '/plain-google';
+  await browser.context.route(target, route => route.fulfill({contentType: 'text/html', body: pageHTML(
+    `<h1>Sign in</h1><a href="https://google.com">Google</a><button>Google Docs</button><button id="google">Google</button>
+    <script>document.querySelector('#google').onclick=()=>{document.body.innerHTML=${JSON.stringify(form)}};</script>`)}));
+  const page = await browser.context.newPage();
+  try {
+    await page.goto(target); await page.waitForFunction(() => !!document.documentElement.dataset.bkAuthReady);
+    await activate(page); const id = await tabId(page);
+    const probe = await panel.evaluate(async id => (await chrome.tabs.sendMessage(id, {type:'auth:probe'}, {frameId:0})).value, id);
+    assert.deepEqual(probe.candidates.map(({action, label}) => ({action, label})), [{action:'google', label:'Google'}]);
+    await message({type:'auth:grant', tabId:id, email:'maker@example.test', target});
+    await message({type:'auth:start', tabId:id});
+    await page.waitForFunction(() => document.querySelector('#url')?.value === 'https://probekits.com/');
+    assert.equal((await message({type:'auth:status', tabId:id})).task.state, 'complete');
+    assert.equal(await page.getAttribute('body', 'data-posted'), null);
+  } finally {await page.close();}
+});
+
 test('投稿入口重定向登录页，精确选择Google账号，落到后台后返回原投稿页', async () => {
   const target = origin + '/redirect-submit', login = origin + '/auth/redirect';
   const google = 'https://accounts.google.com/v3/signin/accountchooser?' + new URLSearchParams({fixture:'redirect',code:'oauth-secret',

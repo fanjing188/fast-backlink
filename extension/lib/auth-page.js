@@ -33,7 +33,7 @@
     } else {
       for (const node of buttons) {
         const name = label(node);
-        if (GOOGLE.test(name)) add(node, 'google', name);
+        if (GOOGLE.test(name) || /^google$/i.test(name) && ['BUTTON', 'INPUT'].includes(node.tagName)) add(node, 'google', name);
         else if (LOGIN.test(name) && (node.tagName === 'A' || !node.closest('form'))) add(node, 'login', name);
       }
     }

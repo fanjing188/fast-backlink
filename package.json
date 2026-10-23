@@ -1,6 +1,6 @@
 {
   "name": "backlink-kit",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Fill website directory submission forms with reusable product details and track submissions locally.",
   "scripts": {
     "test": "node --test extension/tests/*.test.cjs",

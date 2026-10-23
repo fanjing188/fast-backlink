@@ -17,7 +17,7 @@ curl -fsSL https://raw.githubusercontent.com/fanjing188/fast-backlink/main/scrip
 ```sh
 sh scripts/setup.sh --prefix /path/to/app --bin-dir /path/to/bin
 sh scripts/setup.sh --managed-python --no-open
-sh scripts/setup.sh --version v1.0.2
+sh scripts/setup.sh --version v1.0.3
 ```
 
 `--managed-python` 强制使用独立运行时；`--no-open` 不打开浏览器。`--version` 下载指定正式 Release；默认在线安装使用最新正式版。在项目目录执行脚本时，默认使用该目录的源码。
@@ -51,7 +51,7 @@ sh scripts/setup.sh --version v1.0.2
 需要固定来源或回退时：
 
 ```sh
-backlink-kit update --repo https://github.com/fanjing188/fast-backlink.git --ref v1.0.2
+backlink-kit update --repo https://github.com/fanjing188/fast-backlink.git --ref v1.0.3
 backlink-kit rollback
 ```
 
