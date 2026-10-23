@@ -8,7 +8,7 @@
     "test:e2e": "node --test --test-concurrency=1 extension/e2e/*.test.mjs",
     "vendor:check": "node extension/vendor/fbl/sync-fbl.mjs --check"
   },
-  "author": "FanJean",
+  "author": "fanjing188",
   "license": "MIT",
   "type": "commonjs",
   "devDependencies": {

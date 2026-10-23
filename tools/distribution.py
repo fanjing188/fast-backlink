@@ -3,8 +3,8 @@ from pathlib import Path
 
 ROOT_FILES = ('bk.py', 'package.json', 'config.example.json', 'README.md', 'SKILL.md',
               'LICENSE', 'NOTICE', 'SECURITY.md', 'CONTRIBUTING.md', 'CHANGELOG.md', 'PRODUCT.md', 'DESIGN.md')
-PUBLIC_DOCS = ('INSTALLATION.md', 'CAPABILITIES.md', 'OPEN_SOURCE.md', 'STORE_LISTING.md', 'fast-backlink-cli.md',
-               'brand/logo-review.html', 'brand/logo-review-1440.png', 'brand/logo-review-375.png')
+PUBLIC_DOCS = ('INSTALLATION.md', 'CAPABILITIES.md', 'OPEN_SOURCE.md', 'fast-backlink-cli.md')
+PUBLIC_SKILLS = ('fast-backlink-init/SKILL.md', 'fast-backlink-product/SKILL.md')
 
 
 def checked_path(root, path):
@@ -52,4 +52,8 @@ def payload(source):
             if path.is_symlink():
                 raise ValueError('Symlink not allowed in docs')
             files['docs/' + name] = path.read_bytes()
+    for name in PUBLIC_SKILLS:
+        path = checked_path(source, source / 'skills' / name)
+        if path.is_file():
+            files['skills/' + name] = path.read_bytes()
     return files

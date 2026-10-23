@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """清洁源码打包：与私有业务资产分离；缺许可时只允许本地验收候选。"""
 import argparse
+import ast
 import hashlib
 import json
 import os
@@ -67,14 +68,45 @@ def validate(files):
                 raise ValueError('Broken package documentation link: ' + name + ' -> ' + target)
 
 
-def build(source, output, local_candidate):
+def release_identity(source, version, files):
+    if not re.fullmatch(r'\d+\.\d+\.\d+', version):
+        raise ValueError('Release version must match major.minor.patch')
+    try:
+        def git(*args):
+            return subprocess.check_output(['git', '-C', str(source), *args], stderr=subprocess.PIPE)
+        if Path(git('rev-parse', '--show-toplevel').decode().strip()).resolve() != source:
+            raise ValueError('Release requires the committed repository root')
+        if git('status', '--porcelain').strip():
+            raise ValueError('Release requires a clean working tree')
+        commit = git('rev-parse', 'HEAD').decode().strip()
+        for name, raw in files.items():
+            if git('show', f'{commit}:{name}') != raw:
+                raise ValueError('Release payload differs from committed source: ' + name)
+    except subprocess.CalledProcessError as error:
+        raise ValueError('Release payload must come from committed Git source') from error
+    package = json.loads(files['package.json'])
+    lock = json.loads(files['package-lock.json'])
+    extension = json.loads(files['extension/manifest.json'])
+    module = ast.parse(files['backlink_kit/extension_api.py'].decode())
+    runtime = next((ast.literal_eval(node.value) for node in module.body if isinstance(node, ast.Assign)
+                    and any(isinstance(target, ast.Name) and target.id == 'VERSION' for target in node.targets)), None)
+    if any(value != version for value in [package['version'], lock['version'], lock['packages']['']['version'],
+                                          extension['version'], runtime]):
+        raise ValueError('Release version is inconsistent across runtime manifests')
+    return {'version': version, 'source_commit': commit}
+
+
+def build(source, output, local_candidate, release=None):
     source = source.resolve()
+    if release and local_candidate:
+        raise ValueError('Release and local candidate are mutually exclusive')
     blockers = license_blockers(source)
     if blockers and not local_candidate:
         raise ValueError('Publication blocked: license confirmation required: ' + ', '.join(blockers))
     files = source_files(source)
     validate(files)
-    manifest = {'status': 'NOT_FOR_PUBLICATION' if local_candidate else 'LICENSE_FILES_PRESENT_REVIEW_REQUIRED',
+    identity = release_identity(source, release, files) if release else {}
+    manifest = {**identity, 'status': 'RELEASE_SOURCE' if release else 'NOT_FOR_PUBLICATION' if local_candidate else 'PUBLIC_SOURCE',
                 'license_blockers': blockers,
                 'files': {name: hashlib.sha256(raw).hexdigest() for name, raw in sorted(files.items())}}
     files['SOURCE-MANIFEST.json'] = (json.dumps(manifest, ensure_ascii=False, indent=2) + '\n').encode()
@@ -88,7 +120,7 @@ def build(source, output, local_candidate):
         if archive.testzip() is not None or any(hashlib.sha256(archive.read(name)).hexdigest() != digest
                                                 for name, digest in manifest['files'].items()):
             raise ValueError('Archive verification failed; retain file for diagnosis')
-    return {'path': str(output.resolve()), 'status': manifest['status'], 'license_blockers': blockers,
+    return {**identity, 'path': str(output.resolve()), 'status': manifest['status'], 'license_blockers': blockers,
             'files_including_manifest': len(files), 'sha256': hashlib.sha256(output.read_bytes()).hexdigest()}
 
 
@@ -96,10 +128,12 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--source', type=Path, default=ROOT)
     parser.add_argument('--output', type=Path, required=True)
-    parser.add_argument('--local-candidate', action='store_true', help='Private evaluation only; not a redistribution license')
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument('--local-candidate', action='store_true', help='Private evaluation only; not a redistribution license')
+    mode.add_argument('--release', help='Build a version-matched release from clean committed source')
     args = parser.parse_args()
     try:
-        print(json.dumps(build(args.source, args.output, args.local_candidate), ensure_ascii=False, indent=2))
+        print(json.dumps(build(args.source, args.output, args.local_candidate, args.release), ensure_ascii=False, indent=2))
         return 0
     except (OSError, ValueError, KeyError) as error:
         print(str(error), file=sys.stderr)

@@ -1,12 +1,14 @@
-# Contributing
+# 开发与测试
 
-The project uses MIT; included Fast-browser-link copies and adaptations are covered by the permission recorded in LICENSE, NOTICE and extension/vendor/fbl/LICENSE. The public release is being prepared. Use synthetic fixtures, not your customer data, in proposed changes.
+维护者：[fanjing188](https://github.com/fanjing188)。
 
-## Development
+## 本地检查
 
-Python 3.11+ is the runtime dependency. Node and Playwright are development-only dependencies. Install the locked dependencies with `npm ci`, then install Chromium using `npx playwright install chromium`. E2E media fixtures also need ffmpeg. Browser tests run headful and require a graphical session; Linux headless CI needs its own verified display setup.
+开发需要 Python 3.11+、Node 22、ffmpeg 和可用的 macOS 图形会话：
 
 ```sh
+npm ci --ignore-scripts
+npx playwright install chromium
 BK_PROTECT_REAL=1 python3 -m unittest
 node --test extension/tests/*.test.cjs
 node --input-type=module --check < extension/background.js
@@ -14,14 +16,15 @@ node --test --test-concurrency=1 extension/e2e/*.test.mjs
 npm run vendor:check
 ```
 
-E2E owns ports18790/18801/18802 and uses private temporary data. Stop the local demo preview before E2E; never stop a process you do not own. For legacy real-data protection use `BK_REAL_DATA_DIR=/absolute/path/to/private/data` together with `BK_PROTECT_REAL=1`. Do not run tests against business assets.
+测试使用私有临时目录和合成资料。浏览器套件占用 18790/18801/18802，串行运行；不要连接真实业务库，也不要停止不属于测试的服务。
 
-Add a failing regression before fixing a matcher or restoration bug. Cover controlled-field rollback, ambiguous options, products sharing a URL, changed media, missing frames and unknown submission outcomes. Browser-side DOM agreement is not proof that the target platform accepted a submission.
+## 修改要求
 
-## Assets and docs
+- 修问题先补能失败的回归，保留人工输入、产品隔离和未知结果防重投。
+- 界面变化核窄侧栏、深浅色、键盘和真实点击；DOM 值相同不代表平台收稿。
+- 行为变化同步相关文档。提交说明写清改了什么，不加入聊天记录或测试过程流水。
+- 不提交配置、密钥、资料包、业务日志或生成截图。第三方代码保留许可与固定摘要。
 
-`extension/icons/mark.svg` is the logo source. `node tools/make-icons.mjs` renders PNG sizes; `node tools/brand-preview.mjs` renders the design board. Never replace real browser acceptance with the brand board.
+公开源码包使用 `python3 tools/package_public.py --output /path/to/source.zip`；私下验收加 `--local-candidate`。构建会检查公开白名单、敏感内容、文档链接和包内摘要。
 
-Update README, capabilities and installation instructions when behavior changes. Vendor files remain pinned; `npm run vendor:check` validates local hashes. Set `FBL_DIR=/path/to/native-extension` only when deliberately comparing or synchronizing an authorized upstream.
-
-Use the public package builder to inspect candidate contents. Never commit personal config, product packages, generated snapshots, credentials or private evidence. A gitignore entry is not a historical secret-removal procedure.
+项目许可见 [LICENSE](LICENSE)，第三方署名见 [NOTICE](NOTICE)。

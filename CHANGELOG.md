@@ -1,11 +1,10 @@
-# Changelog
+# 变更记录
 
-## Unreleased
+## 1.0.0
 
-- User-scoped install, update, rollback, uninstall and doctor commands; user data is kept on update and uninstall.
-- Verification archives retain actual form values and manual edits across browser restarts.
-- Product isolation, durable unknown-submission guards and media identity/hash checks.
-- More WordPress and custom-dropdown structures with readback checks.
-- Private asset export and new-product source reuse candidates.
-- Bookmark-link logo candidate, six PNG sizes, clearer extension description and installation/capability documentation.
-- Public-source packaging is guarded by licensing checks; no public release is claimed.
+- 本机产品资料、素材管理、表单填写与来源经验复用。
+- AI 智能填充、设置保存与草稿连通测试。
+- Google 登录接续与人工验证交接。
+- 外链库分页筛选、CSV/TXT 导入导出和批量投稿。
+- 待人工快照、跨页恢复、产品隔离与未知结果防重投。
+- 用户级安装、更新、回滚及保留数据的卸载。

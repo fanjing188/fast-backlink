@@ -1,11 +1,11 @@
-# Security and privacy
+# 安全与隐私
 
-Do not post access tokens, API keys, configuration, product archives, source inventories or unredacted logs in public issues. The local connection URL contains a bearer token. Stop the service before investigating an unexpected write; preserve evidence and do not repeat a submission with an unknown result.
+本机连接地址含访问令牌。不要公开令牌、API 密钥、配置、资产包或原始日志，也不要把本机服务反向代理到公网。
 
-The extension talks to a token-protected loopback service. Do not reverse-proxy it to the public internet or share its URL. The service is a single-user local application, not a multi-tenant security boundary. Browser permissions and optional AI data flow are documented in [capabilities](docs/CAPABILITIES.md) and [listing draft](docs/STORE_LISTING.md).
+扩展只向带令牌的回环服务读取资料。AI 默认关闭；启用后，接口提供方会收到允许发送的字段元数据。产品资料与业务记录保存在本机，资产导出包应私密保存。
 
-Installation is user-scoped. Scripts do not request sudo, change browser policy, edit shell profiles or register an OS daemon. Updates preserve user data and refuse to run while the managed foreground service holds its lock. Uninstall removes owned code, not your assets; remove the browser extension separately.
+程序不代填密码、验证码或支付信息，不自动确认授权条款。单页模式由用户最终提交；批量模式仅按用户明确启动的任务提交。遇到未知结果，先核实，不重复执行。
 
-AI is off by default. When enabled, the configured provider receives permitted form metadata and candidate-key information; optional text previews must be reviewed before use. Exported asset bundles contain private business material even though the source code may later be open source.
+安装和更新使用当前用户权限，不请求 sudo，不修改浏览器策略或系统服务。更新保留个人数据；浏览器扩展需手动重载。
 
-A private vulnerability-reporting channel has not yet been published. Until it exists, do not disclose credentials or exploitable details in a public issue; contact the project owner through an existing private channel. MIT permissions are recorded in LICENSE and NOTICE; public publication still requires final verification and approval.
+报告安全问题时，请通过与项目维护者已有的私密渠道联系。不要在公开 Issue 中披露凭据或可利用细节。普通问题可提交 [Issue](https://github.com/fanjing188/fast-backlink/issues)。
