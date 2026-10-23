@@ -70,7 +70,13 @@ globalThis.fetch = async (...args) => {
     assert.equal(await page.getAttribute('body', 'data-submissions'), '1');
     assert.equal(await browser.worker.evaluate(async url => {
       const tab = (await chrome.tabs.query({})).find(item => item.url === url);
-      return (await chrome.storage.session.get('tab:' + tab.id))['tab:' + tab.id]?.submitted;
+      // 原生点击与后台IPC分开完成；item闸门保持关闭，等持久锁落盘再放行。
+      const deadline = Date.now() + 3000;
+      while (Date.now() < deadline) {
+        if ((await chrome.storage.session.get('tab:' + tab.id))['tab:' + tab.id]?.submitted) return true;
+        await new Promise(resolve => setTimeout(resolve, 20));
+      }
+      return false;
     }, page.url()), true, '未核实原始任务ID前也要立即锁住本页');
     await browser.worker.evaluate(() => globalThis.fixtureReleaseItem());
     let record;
