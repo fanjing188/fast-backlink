@@ -11,8 +11,6 @@ jobs:
     timeout-minutes: 25
     env:
       BK_PROTECT_REAL: "1"
-      BK_TEST_TMPDIR: ${{ runner.temp }}/backlink-kit-tests
-      TMPDIR: ${{ runner.temp }}/backlink-kit-tests
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -23,7 +21,11 @@ jobs:
           node-version: "22"
           cache: npm
       - name: Prepare private temporary directory
-        run: mkdir -p "$BK_TEST_TMPDIR"
+        env:
+          BK_TEST_TMPDIR: ${{ runner.temp }}/backlink-kit-tests
+        run: |
+          mkdir -p "$BK_TEST_TMPDIR"
+          printf 'BK_TEST_TMPDIR=%s\nTMPDIR=%s\n' "$BK_TEST_TMPDIR" "$BK_TEST_TMPDIR" >> "$GITHUB_ENV"
       - run: npm ci --ignore-scripts
       - run: npx playwright install chromium
       - name: E2E media dependency
