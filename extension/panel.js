@@ -23,7 +23,8 @@ const STATUS_LABEL = {filled: '已填', pending: '待确认', confirm: '待确�
   captcha: '验证码', sensitive: '敏感', honeypot: '蜜罐', skipped: '跳过', failed: '失败'};
 const state = {info: null, settings: {}, kit: null, sites: [], snapshots: [], target: null, view: 'form',
   filter: 'all', search: '', loading: true, lastError: null, snapshotError: null, aiLoading: false,
-  tasksSite: '', verificationOnly: false, archiving: false};
+  tasksSite: '', verificationOnly: false, archiving: false, projectChanging: false};
+let refreshGeneration = 0, projectSelection = 0;
 
 // ---------- 基础 UI ----------
 
@@ -79,22 +80,30 @@ async function currentTab() {
 }
 
 async function refresh({render = true} = {}) {
-  state.tab = await currentTab();
+  const generation = ++refreshGeneration;
+  const tab = await currentTab();
+  let info = null, errorMessage = null;
   try {
-    state.info = await send('panel:state', {tabId: state.tab?.id});
-    state.settings = state.info.settings || {};
-    state.lastError = null;
+    info = await send('panel:state', {tabId: tab?.id});
   } catch (error) {
-    state.lastError = error.message;
-    state.info = null;
+    errorMessage = error.message;
   }
-  if (!state.sites.length) state.sites = await send('sites').catch(() => []);
+  const sites = state.sites.length ? state.sites : await send('sites').catch(() => []);
+  if (generation !== refreshGeneration || state.projectChanging) return;
+  state.tab = tab;
+  state.info = info;
+  if (info) state.settings = info.settings || {};
+  state.lastError = errorMessage;
+  state.sites = sites;
   const select = $('#site');
-  if (select.options.length !== state.sites.length + 1) {
+  const choosing = !select.disabled && document.activeElement === select && document.hasFocus();
+  if (!choosing && select.options.length !== state.sites.length + 1) {
     select.replaceChildren(el('option', {value: ''}, text('（未选项目）')),
       ...state.sites.map(site => el('option', {value: site}, text(site))));
   }
-  select.value = state.info?.site || '';
+  const selected = state.info?.site || '';
+  // 原生菜单展开期间写value（即使同值）也会重置选择，不让轮询抢走操作。
+  if (!choosing && select.value !== selected) select.value = selected;
   select.title = '项目选择自动保存，新页面沿用；续填任务使用其绑定项目';
   renderStatus();
   if (render) renderView();
@@ -798,15 +807,36 @@ for (const button of document.querySelectorAll('footer [data-command]')) {
 $('#site').addEventListener('change', async event => {
   const site = event.target.value;
   if (!site) return;
+  const selection = ++projectSelection;
+  ++refreshGeneration;
+  state.projectChanging = true;
+  event.target.disabled = true;
+  event.target.setAttribute('aria-busy', 'true');
+  let saved = false;
   try {
-    state.tab = (await currentTab()) || state.tab;
-    const selected = await send('panel:activate', {site, tabId: state.tab?.id});
-    if (selected?.superseded) return;
+    const tab = (await currentTab()) || state.tab;
+    if (selection !== projectSelection) return;
+    const selected = await send('panel:activate', {site, tabId: tab?.id});
+    if (selected?.superseded || selection !== projectSelection) return;
     state.kit = null;
     await new Promise(resolve => setTimeout(resolve, 350));
-    await refresh();
-    toast(`已保存默认项目：${site}`);
-  } catch (error) {toast(error.message, 'err');}
+    saved = true;
+  } catch (error) {
+    if (selection === projectSelection) toast(error.message, 'err');
+  } finally {
+    if (selection === projectSelection) {
+      state.projectChanging = false;
+      try {
+        await refresh();
+      } finally {
+        if (selection === projectSelection) {
+          event.target.disabled = false;
+          event.target.removeAttribute('aria-busy');
+          if (saved) toast(`已保存默认项目：${site}`);
+        }
+      }
+    }
+  }
 });
 $('#settings').addEventListener('click', () => switchView('settings'));
 
