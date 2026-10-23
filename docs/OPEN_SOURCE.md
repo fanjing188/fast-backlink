@@ -12,6 +12,6 @@
 python3 tools/package_public.py --output /path/to/fast-backlink-source.zip
 ```
 
-构建会核许可文件、敏感内容、相对链接、CRC 和逐文件摘要。正式发行加 `--release 1.0.0`，要求版本一致、工作区干净，并逐文件绑定 Git 提交。`--local-candidate` 只生成私下验收包。
+构建会核许可文件、敏感内容、相对链接、CRC 和逐文件摘要。正式发行用 `--release` 指定当前版本号，要求版本一致、工作区干净，并逐文件绑定 Git 提交。`--local-candidate` 只生成私下验收包。
 
 开发检查见 [开发与测试](../CONTRIBUTING.md)，用户安装见 [安装说明](INSTALLATION.md)。
