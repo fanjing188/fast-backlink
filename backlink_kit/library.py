@@ -7,7 +7,7 @@ from copy import deepcopy
 from pathlib import Path
 from urllib.parse import parse_qsl, unquote, urlsplit, urlunsplit
 
-from . import handoff, kits
+from . import handoff, kits, library_v2 as v2
 from .core import atomic_json, day, domain, read_csv, rules
 from .sources import SourceStore, basic, campaign, claim, evidence, merge_claim, submitted, unique
 
@@ -69,9 +69,9 @@ def validate(conf, data):
         elif key == 'admission':
             valid = value in ('待核实', '可投', '不做')
         elif key == 'scenario':
-            valid = isinstance(value, str) and value in rules('policy')['scenarios']
+            valid = isinstance(value, str) and value in {*rules('policy')['scenarios'], *v2.TYPES}
         elif key == 'fee':
-            valid = value in ('free', 'paid')
+            valid = value in v2.FEES
         elif key == 'backlink':
             valid = isinstance(value, bool)
         elif key == 'fit_sites':
@@ -187,6 +187,8 @@ def item(record, site='', ledger=(), kit=None):
 def history_rows(conf):
     rows = read_csv(conf['ledger'])[1] if Path(conf['ledger']).exists() else []
     rows += [json.loads(path.read_text()) for path in sorted(Path(conf['handoff_dir']).glob('*.json'))]
+    from .batch import BatchStore
+    rows += BatchStore(conf).history()
     return rows
 
 
@@ -196,7 +198,7 @@ def listing(conf, query):
     scenario = query.get('scenario') or 'all'
     if status not in ('all', 'confirmed', 'ready', 'needs_review', 'already_submitted', 'blocked', 'unknown'):
         raise ValueError('invalid_library_status')
-    if scenario != 'all' and scenario not in rules('policy')['scenarios']:
+    if scenario != 'all' and scenario not in {*rules('policy')['scenarios'], *v2.TYPES, 'unclassified'}:
         raise ValueError('invalid_library_scenario')
     if site and site not in conf['sites']:
         raise ValueError('unknown_site')
@@ -204,16 +206,18 @@ def listing(conf, query):
     ledger = history_rows(conf)
     q = (query.get('q') or '').strip().lower()
     records = [r for r in SourceStore(conf['sources_dir']).rows()
-               if (not q or q in r['domain'].lower() or any(q in url.lower() for url in r['submit_urls']))
-               and (scenario == 'all' or basic(r, 'scenario') == scenario)]
-    items = [item(r, site, ledger, kit) for r in records]
+               if (not query.get('domain') or r['domain'] == query['domain'])
+               and (not q or q in r['domain'].lower() or any(q in url.lower() for url in r['submit_urls']))
+               and (scenario == 'all' or (v2.normalize_type(basic(r, 'scenario')) or 'unclassified') == scenario)]
+    items = [v2.decorate(r, item(r, site, ledger, kit), ledger, site) for r in records]
     items = [r for r in items if status == 'all' or
              (r['admission'] == '可投' if status == 'confirmed' else r['reuse_state'] == status)]
+    paged, items = v2.paginate(items, query)
     # 计数与返回条目使用完全相同的四项筛选，不混用全库总数。
     counts = dict(total=len(items), confirmed=sum(r['admission'] == '可投' for r in items))
     counts.update({state: sum(r['reuse_state'] == state for r in items)
                    for state in ('ready', 'needs_review', 'already_submitted', 'blocked')})
-    return dict(items=items, counts=counts, site=site)
+    return dict(**paged, counts=counts, site=site)
 
 
 def prepare(conf, data):

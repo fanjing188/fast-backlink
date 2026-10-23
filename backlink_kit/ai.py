@@ -17,10 +17,11 @@ import socket
 import threading
 import time
 from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
+from urllib.parse import urlsplit
+from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 from . import kits
-from .core import atomic_json, sensitive
+from .core import atomic_json, config_lock, sensitive
 from .fbstores import now_iso
 
 DEFAULTS = {
@@ -471,10 +472,105 @@ def _breaker_ok(name):
     state['open_until'] = 0
 
 
+class _NoRedirect(HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+def _configuration_path(conf):
+    return Path(conf.get('settings_dir') or (Path(__file__).resolve().parents[1] / 'settings')) / 'ai-config.json'
+
+
+def _configuration(conf):
+    path = _configuration_path(conf)
+    try:
+        saved = json.loads(path.read_text(encoding='utf-8'))
+    except FileNotFoundError:
+        saved = {}
+    if not isinstance(saved, dict):
+        raise ValueError('AI 设置文件无效，请检查本机配置')
+    return {**conf, 'ai': {**(conf.get('ai') or {}), **saved}}
+
+
+def _configured_advisor(conf, patch, save=False):
+    """界面配置覆盖单独私有落盘，保留 config.json 中的高级选项。"""
+    if not isinstance(patch, dict):
+        raise ValueError('AI 配置格式无效')
+    path = _configuration_path(conf)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with config_lock(path):
+        current = AIAdvisor(conf)
+        cfg = dict(current.cfg)
+        allowed = {'enabled', 'base_url', 'model', 'api_key', 'timeout_ms', 'json_mode', 'clear_api_key'}
+        if patch.keys() - allowed:
+            raise ValueError('AI 配置包含不支持的字段')
+        for key in ('enabled', 'json_mode', 'clear_api_key'):
+            if key in patch and not isinstance(patch[key], bool):
+                raise ValueError('AI 开关格式无效')
+        for key in ('base_url', 'model', 'api_key'):
+            if key in patch and (not isinstance(patch[key], str) or len(patch[key]) > 4096):
+                raise ValueError('AI 地址、模型或密钥格式无效')
+        if 'timeout_ms' in patch and (type(patch['timeout_ms']) is not int or not 1000 <= patch['timeout_ms'] <= 120000):
+            raise ValueError('请求超时须为 1–120 秒')
+        cfg.update({key: value for key, value in patch.items() if key in DEFAULTS and key != 'api_key'})
+        cfg = settings({'ai': cfg})
+        new_key = str(patch.get('api_key') or '').strip()
+        if cfg['base_url']:
+            url = urlsplit(cfg['base_url'])
+            local = url.hostname in ('127.0.0.1', 'localhost', '::1')
+            if (not url.hostname or url.username or url.password or url.query or url.fragment
+                    or (url.scheme != 'https' and not (url.scheme == 'http' and local))):
+                raise ValueError('API 地址须为 HTTPS；本机服务可用 HTTP，地址不能含账号、查询或片段')
+        if cfg['base_url'] != current.cfg['base_url'] and resolve_api_key(current.cfg) and not (new_key or patch.get('clear_api_key')):
+            raise ValueError('更换 API 地址时请重新填写密钥，或勾选移除密钥，避免向新地址发送旧密钥')
+        if patch.get('clear_api_key'):
+            cfg.update(api_key='', api_key_env='', api_key_file='')
+        if new_key:
+            if any(ord(char) < 32 or ord(char) == 127 for char in new_key):
+                raise ValueError('API 密钥不能含换行或控制字符')
+            cfg['api_key'] = new_key
+        if cfg['enabled'] and not configured(cfg):
+            raise ValueError('请填写 API 地址、模型和密钥；本机无鉴权接口可留空密钥')
+        advisor = AIAdvisor({**conf, 'ai': cfg}, load_saved=False)
+        if save:
+            atomic_json(path, {key: cfg[key] for key in ('enabled', 'base_url', 'model', 'api_key',
+                'api_key_env', 'api_key_file', 'timeout_ms', 'json_mode')})
+        return advisor
+
+
+def configure(conf, patch, save=False):
+    return _configured_advisor(conf, patch, save=save).status()
+
+
+def test_connection(conf, patch):
+    """使用当前草稿发合成请求；不保存、不读取资料包、不写业务日志。"""
+    advisor = _configured_advisor(conf, patch)
+    if not configured(advisor.cfg):
+        raise ValueError('请先填写 API 地址、模型和密钥')
+    result = {'ok': False, 'model': advisor.cfg['model']}
+    try:
+        _breaker_ok(f'{advisor.cfg["base_url"]}|{advisor.cfg["model"]}')
+        reply, _, elapsed = advisor._call('Connection test only. Return {"ok":true}. No user data is included.')
+        if not isinstance(extract_json(reply), dict):
+            raise ValueError('ai_bad_response')
+        result.update(ok=True, ms=elapsed)
+    except ValueError as exc:
+        code = re.search(r'ai_http_(\d{3})', str(exc))
+        if code:
+            status = code.group(1)
+            hint = {'401': '密钥无效或已过期', '403': '接口拒绝访问，请检查权限',
+                    '404': '接口路径或模型不存在', '429': '请求限流或额度不足'}.get(status, '请检查接口与模型配置')
+            result['error'] = f'HTTP {status}：{hint}'
+        else:
+            result['error'] = ('接口不可达或请求超时，请检查地址、网络与超时设置'
+                               if 'ai_unreachable' in str(exc) else '接口未返回有效 JSON 文本，请检查模型与 JSON 模式')
+    return result
+
+
 class AIAdvisor:
-    def __init__(self, conf, logger=None):
-        self.conf = conf
-        self.cfg = settings(conf)
+    def __init__(self, conf, logger=None, load_saved=True):
+        self.conf = _configuration(conf) if load_saved else conf
+        self.cfg = settings(self.conf)
         self.logger = logger
         cache_path = Path(conf.get('settings_dir') or (Path(__file__).resolve().parents[1] / 'settings')) / 'ai-cache.json'
         self.cache = _Cache(cache_path, self.cfg['cache_days'], self.cfg['negative_cache_days'])
@@ -497,6 +593,8 @@ class AIAdvisor:
             'auto_apply': self.cfg['auto_apply'],
             'auto_apply_min_confidence': self.cfg['auto_apply_min_confidence'],
             'has_key': bool(resolve_api_key(self.cfg)),
+            'timeout_ms': self.cfg['timeout_ms'],
+            'json_mode': self.cfg['json_mode'],
         }
 
     def suggest(self, data, use_cache=True):
@@ -504,8 +602,7 @@ class AIAdvisor:
         if not self.cfg['enabled']:
             return {'enabled': False, 'configured': False, 'suggestions': [], 'reason': 'disabled'}
         if not configured(self.cfg):
-            raise ValueError('ai_not_configured：请在 config.json 填 ai.base_url 和 ai.model，'
-                             '并设置 BACKLINK_AI_KEY（或 ai.api_key_file）')
+            raise ValueError('ai_not_configured：请在侧栏“设置 → AI 智能填充”填写 API 地址、模型和密钥并保存')
         site = str((data or {}).get('site') or '')
         if site not in (self.conf.get('sites') or {}):
             raise ValueError('unknown_site')
@@ -591,7 +688,7 @@ class AIAdvisor:
                 'usage': {key: value for key, value in (usage or {}).items()
                           if key in ('prompt_tokens', 'completion_tokens', 'total_tokens')}}
 
-    def _call(self, prompt):
+    def _call(self, prompt, system_prompt=SYSTEM_PROMPT):
         cfg = self.cfg
         name = f'{cfg["base_url"]}|{cfg["model"]}'
         _breaker_check(name)
@@ -602,7 +699,7 @@ class AIAdvisor:
             headers['Authorization'] = 'Bearer ' + key
         body = {
             'model': cfg['model'],
-            'messages': [{'role': 'system', 'content': SYSTEM_PROMPT},
+            'messages': [{'role': 'system', 'content': system_prompt},
                          {'role': 'user', 'content': prompt}],
             'temperature': 0,
             'max_tokens': cfg['max_tokens'],
@@ -646,7 +743,7 @@ class AIAdvisor:
         request = Request(url, data=json.dumps(body, ensure_ascii=False).encode('utf-8'),
                           headers=headers, method='POST')
         try:
-            with urlopen(request, timeout=timeout) as response:
+            with build_opener(_NoRedirect()).open(request, timeout=timeout) as response:
                 raw = response.read(2_000_000)
         except HTTPError as exc:
             detail = ''
@@ -656,8 +753,9 @@ class AIAdvisor:
                 pass
             finally:
                 exc.close()
-            detail = re.sub(r'\s+', ' ', detail)[:300]
-            raise ValueError(f'ai_http_{exc.code}：{detail or exc.reason}') from exc
+            # 只保留兼容性重试需要的参数名，不回传或记录供应商可能回显的密钥。
+            hints = ' '.join(name for name in ('response_format', 'max_tokens') if name in detail)
+            raise ValueError(f'ai_http_{exc.code}：{hints or "接口拒绝请求，请检查配置"}') from exc
         except (URLError, socket.timeout, TimeoutError) as exc:
             reason = getattr(exc, 'reason', exc)
             raise ValueError(f'ai_unreachable：{reason}') from exc
@@ -682,8 +780,8 @@ class AIAdvisor:
 
 def check(conf, site=None, fields=None):
     """命令行冒烟测试：不写资料库，只验证配置、连通性和 JSON 输出。"""
-    cfg = settings(conf)
     advisor = AIAdvisor(conf)
+    cfg = advisor.cfg
     result = advisor.status()
     result['ok'] = False
     if not cfg['enabled']:

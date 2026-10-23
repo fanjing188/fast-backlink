@@ -194,6 +194,7 @@ class SettingsStore:
         'auto_next_sites': {},
         'fill_low_confidence': True,
         'inline_asset_button': True,
+        'floating_window': True,
         'ai_fallback': True,
         'snapshot_keep': 5,
         'snapshot_days': 14,

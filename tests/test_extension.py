@@ -4,6 +4,7 @@ import io
 import json
 from pathlib import Path
 import tempfile
+import threading
 import unittest
 from unittest.mock import patch
 
@@ -77,6 +78,49 @@ class ExtensionTests(unittest.TestCase):
         source = self.api.library.load('parallel.example')
         self.assertEqual(len(source['memories']['probekits']['fields']),10)
         self.assertEqual(len(c.read_csv(self.api.library.root/'index.csv')[1]),1)
+
+    def test_submission_attempt_waits_for_inflight_results_without_replaying_submission(self):
+        attempted = threading.Event()
+        flock = h.fcntl.flock
+
+        def observe_lock(fd, operation):
+            try:
+                return flock(fd, operation)
+            except BlockingIOError:
+                attempted.set()
+                raise
+
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            with self.store.lock(self.record['id']):
+                with patch.object(h.fcntl, 'flock', observe_lock):
+                    future = pool.submit(self.api.post, 'submission-attempt', {'id': self.record['id']})
+                    self.assertTrue(attempted.wait(1), '必须在同一项写锁尚未释放时尝试记录投稿')
+                    record = self.store.load(self.record['id'])
+                    record.update(status='待人工')
+                    self.store.save(record)
+            result = future.result(timeout=3)
+        self.assertEqual(result['status'], '结果未知')
+        saved = self.store.load(self.record['id'])
+        self.assertTrue(saved['attempted_at'])
+        self.assertEqual(saved['status'], '结果未知')
+        self.assertEqual(self.api.post('submission-attempt', {'id': saved['id']}), result)
+        with self.assertRaises(ValueError):
+            self.api.post('results', {'id': saved['id'], 'results': []})
+
+    def test_submission_lock_wait_has_a_deadline_and_never_changes_locked_record(self):
+        before = self.store.path(self.record['id']).read_bytes()
+        with self.store.lock(self.record['id']):
+            with self.assertRaisesRegex(ValueError, '同一项正在续填'):
+                with self.store.lock(self.record['id'], timeout=0.02):
+                    self.fail('仍被其他写者持有的锁不能通过')
+        self.assertEqual(self.store.path(self.record['id']).read_bytes(), before)
+
+    def test_ordinary_record_lock_remains_nonblocking_by_default(self):
+        with self.store.lock(self.record['id']):
+            with patch.object(h.time, 'sleep', side_effect=AssertionError('普通锁不能等待')):
+                with self.assertRaisesRegex(ValueError, '同一项正在续填'):
+                    with self.store.lock(self.record['id']):
+                        self.fail('不能重复取得同一项锁')
 
     def handler(self,path,origin='chrome-extension://'+'a'*32,host='127.0.0.1:18780',data=None):
         class FakeServer:

@@ -397,10 +397,14 @@ class LibraryAPITests(unittest.TestCase):
         item = result['items'][0]
         self.assertEqual(set(item), {'domain', 'submit_url', 'scenario', 'admission', 'reuse_state',
                                     'reasons', 'dr', 'dr_date', 'fee', 'login', 'backlink',
-                                    'has_recipe', 'previous_sites', 'history', 'last_checked_at', 'fit_sites', 'note'})
+                                    'has_recipe', 'previous_sites', 'history', 'last_checked_at', 'fit_sites', 'note',
+                                    'submit_count', 'last_submitted_at', 'submission_status', 'dr_fresh', 'submitted_products'})
         self.assertEqual(item['admission'], '待核实')
         self.assertEqual(item['reuse_state'], 'unknown')
-        self.assertEqual(item['fee'], 'UNKNOWN')
+        self.assertEqual(item['fee'], 'unknown')
+        self.assertEqual(item['submit_count'], 0)
+        self.assertEqual(item['submission_status'], 'unsubmitted')
+        self.assertEqual(item['submitted_products'], [])
         record = s.SourceStore(self.conf['sources_dir']).load('new.example')
         self.assertEqual(record['admission']['by'], 'manual')
         self.assertEqual(record['admission']['evidence'][0]['path'], 'extension:library')

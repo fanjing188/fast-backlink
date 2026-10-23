@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 import re
 import secrets
+import time
 from socketserver import TCPServer
 from urllib.parse import urlsplit, urlunsplit, parse_qs
 import uuid
@@ -79,13 +80,19 @@ class Store:
         atomic_json(self.path(record['id']),record)
 
     @contextmanager
-    def lock(self,ident):
+    def lock(self,ident,timeout=0.0):
         self.path(ident)
         with (self.root/(ident+'.lock')).open('a') as f:
-            try:
-                fcntl.flock(f,fcntl.LOCK_EX|fcntl.LOCK_NB)
-            except BlockingIOError:
-                raise ValueError('同一项正在续填') from None
+            deadline=time.monotonic()+timeout
+            while True:
+                try:
+                    fcntl.flock(f,fcntl.LOCK_EX|fcntl.LOCK_NB)
+                    break
+                except BlockingIOError:
+                    remaining=deadline-time.monotonic()
+                    if remaining<=0:
+                        raise ValueError('同一项正在续填') from None
+                    time.sleep(min(0.01,remaining))
             try:
                 yield
             finally:
@@ -450,7 +457,7 @@ def make_server(conf,port=0,token_file=None):
             # 素材上传和日志批量最大，其余保持小体积，减少误用面。
             return {'kit':16_000_000,'asset':16_000_000,'logs':4_000_000,'snapshot':3_000_000,
                     'agent/command':4_000_000,'agent/result':4_000_000,
-                    'ai_suggest':262144}.get(endpoint,262144)
+                    'library_import':6000000,'library_import_preview':6000000,'batch_result':3000000,'ai_suggest':262144}.get(endpoint,262144)
         def handle_api(self,method):
             if not self.api_allowed():
                 return self.api_reply(403,{'error':'禁止访问'})

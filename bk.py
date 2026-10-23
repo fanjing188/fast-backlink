@@ -6,7 +6,7 @@ from datetime import timedelta
 import json
 from pathlib import Path
 import sys
-from backlink_kit.core import (ROOT, atomic_json, load_config, today, day, read_csv, write_csv, output_csv,
+from backlink_kit.core import (ROOT, atomic_json, config_lock, load_config, today, day, read_csv, write_csv, output_csv,
     append_note, enrich_dr, screen, fetch, compile_kit, check_kit, fillplan, make_queue, due,
     verify_row, outreach_drafts, domain, rules, interval)
 from backlink_kit.fbcli import CLIError
@@ -155,18 +155,20 @@ def kits_command(args,conf):
         import re
         if not args.site or not re.fullmatch('[a-z][a-z0-9-]*',args.site):
             raise ValueError('站点键只允许小写字母、数字和连字符')
-        if args.site in conf['sites']:
-            raise ValueError('站点已登记')
-        directory=kits_module.kit_dir(conf,args.site)
-        if (directory/'kit.json').exists(): raise ValueError('资料包已存在')
-        template=kits_module.empty_kit(args.site)
-        template['source']='待补充事实来源'
-        for key in sorted({v for v in rules('kit-fields').values()}|set(kits_module.REQUIRED_KEYS)):
-            template['fields'][key]=kits_module.variant('')
-        kits_module.save(conf,args.site,template)
-        raw=json_file(args.config)
-        raw['sites'][args.site]={'domain':'','kit':args.site+'/kit.json'}
-        atomic_json(args.config,raw)
+        with config_lock(args.config):
+            conf=load_config(args.config)
+            if args.site in conf['sites']:
+                raise ValueError('站点已登记')
+            directory=kits_module.kit_dir(conf,args.site)
+            if (directory/'kit.json').exists(): raise ValueError('资料包已存在')
+            template: dict=kits_module.empty_kit(args.site)
+            template['source']='待补充事实来源'
+            for key in sorted({v for v in rules('kit-fields').values()}|set(kits_module.REQUIRED_KEYS)):
+                template['fields'][key]=kits_module.variant('')
+            kits_module.save(conf,args.site,template)
+            raw=json_file(args.config)
+            raw['sites'][args.site]={'domain':'','kit':args.site+'/kit.json'}
+            atomic_json(args.config,raw)
         print(json.dumps({'site':args.site,'template':str(directory/'kit.json'),'message':'补齐事实、图片和config中的domain，再运行 kits --check'},ensure_ascii=False))
         return
     if args.kits_action=='migrate':
@@ -179,7 +181,7 @@ def kits_command(args,conf):
     errors={}
     profile=kits_module.profile(conf)
     for site,settings in conf['sites'].items():
-        if not args.check:
+        if args.kits_action != 'check' and not args.check:
             # 只允许从 markdown 重建到独立目录；真实资料目录不就地覆盖。
             target=kits_module.kit_dir(conf,site)
             if target.resolve()==Path(conf['kits_source']).resolve():
@@ -485,6 +487,10 @@ def main(argv=None):
     p=sub.add_parser('logs',parents=[common]);p.add_argument('--days',type=int,default=7);p.add_argument('--level');p.add_argument('--cat');p.add_argument('--site');p.add_argument('--source');p.add_argument('--limit',type=int,default=500)
     p=sub.add_parser('report',parents=[common]);p.add_argument('--days',type=int,default=7)
     p=sub.add_parser('settings',parents=[common]);p.add_argument('--patch');p.add_argument('--set',action='append',default=[])
+    p=sub.add_parser('batch',parents=[common]);batch_sub=p.add_subparsers(dest='batch_action',required=True)
+    p=batch_sub.add_parser('start');p.add_argument('--site',required=True);p.add_argument('--domains',required=True);p.add_argument('--batch-size',type=int,default=10);p.add_argument('--wait',type=float,default=60)
+    p=batch_sub.add_parser('status');p.add_argument('id',nargs='?');p.add_argument('--wait',type=float,default=10)
+    p=batch_sub.add_parser('stop');p.add_argument('id');p.add_argument('--wait',type=float,default=10)
     p=sub.add_parser('cancel',parents=[common]);p.add_argument('id')
     p=sub.add_parser('call',parents=[common]);p.add_argument('call_action');p.add_argument('--args');p.add_argument('--args-file');p.add_argument('--tab',type=int);p.add_argument('--url');p.add_argument('--wait',type=float,default=60);p.add_argument('--patch');p.add_argument('--set',action='append',default=[])
     p=commands.add_parser('handoff');sub=p.add_subparsers(dest='handoff_action',required=True)

@@ -44,6 +44,22 @@ class InstallationTests(unittest.TestCase):
         self.assertEqual((self.prefix.stat().st_mode & 0o777), 0o700)
         self.assertIn('BK_HANDOFF_TOKEN_FILE=', (self.bin / 'backlink-kit').read_text(), '不能退回别的个人安装令牌')
 
+    def test_quickstart_product_check_is_read_only_and_reports_missing_fields(self):
+        self.assertEqual(self.script('install').returncode, 0)
+        command = str(self.bin / 'backlink-kit')
+        created = subprocess.run([command, 'kits', 'new', 'myproduct'],
+                                 env=self.env, text=True, capture_output=True)
+        self.assertEqual(created.returncode, 0, created.stderr)
+        kit = self.prefix / 'data/kits/myproduct/kit.json'
+        original = kit.read_bytes()
+        for arguments in (['kits', 'check'], ['kits', '--check']):
+            with self.subTest(arguments=arguments):
+                result = subprocess.run([command, *arguments], env=self.env, text=True, capture_output=True)
+                self.assertEqual(result.returncode, 1, result.stderr)
+                self.assertIn('myproduct', json.loads(result.stdout))
+                self.assertTrue(json.loads(result.stdout)['myproduct']['errors'])
+                self.assertEqual(kit.read_bytes(), original, '检查不能重建或覆盖产品草稿')
+
     def test_relative_asset_export_stays_in_callers_directory(self):
         self.assertEqual(self.script('install').returncode, 0)
         result = subprocess.run([str(self.bin / 'backlink-kit'), 'assets', 'export', '--output', 'my-assets.zip'],

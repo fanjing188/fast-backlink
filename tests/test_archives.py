@@ -100,5 +100,51 @@ class ArchiveTests(unittest.TestCase):
         self.assertFalse(saved['archive']['only_verification'])
 
 
+    def test_locator_only_verification_and_consent_values_are_not_saved(self):
+        payload = self.payload()
+        fields = payload['frames'][0]['steps'][0]['fields']
+        fields.extend([
+            dict(label='Code', inputType='text', value='NEVER_STORE_OTP',
+                 locator=dict(autocomplete='one-time-code', id='code')),
+            dict(label='Confirm', inputType='checkbox', value=True, checked=True,
+                 locator=dict(name='consent', id='terms')),
+        ])
+        code, saved = self.call('archive', data=payload)
+        self.assertEqual(code, 200, saved)
+        record = handoff.Store(self.conf['handoff_dir']).load(saved['id'])
+        cleaned = record['archive']['frames'][0]['steps'][0]['fields'][-2:]
+        for field in cleaned:
+            self.assertIn('skipped', field)
+            self.assertNotIn('value', field)
+            self.assertNotIn('checked', field)
+
+    def test_same_product_domain_unknown_cannot_be_requeued_at_another_url(self):
+        code, saved = self.call('archive', data=self.payload())
+        self.assertEqual(code, 200, saved)
+        store = handoff.Store(self.conf['handoff_dir'])
+        record = store.load(saved['id'])
+        record.update(status='结果未知', attempted_at=handoff.stamp())
+        store.save(record)
+        payload = self.payload()
+        payload['url'] = 'https://x.example/alternate'
+        payload['frames'][0]['url'] = payload['url']
+        self.assertEqual(self.call('archive', data=payload)[0], 409)
+        self.assertEqual(len(handoff.Store(self.conf['handoff_dir']).rows()), 1)
+
+    def test_ordinary_snapshot_uses_archive_sensitive_filter_before_persistence(self):
+        frame = self.payload()['frames'][0]
+        frame.update(id='synthetic-consent', site='probekits', source_domain='x.example')
+        frame['steps'][0]['fields'].append(dict(label='Confirm', inputType='checkbox', value=True, checked=True,
+                                               locator=dict(name='agree_terms', id='consent')))
+        code, result = self.call('snapshot', data=frame)
+        self.assertEqual(code, 200, result)
+        code, snapshots = self.call('snapshots', 'source=x.example&url=https://x.example/submit')
+        self.assertEqual(code, 200)
+        saved = snapshots[0]['steps'][0]['fields'][-1]
+        self.assertEqual(saved.get('skipped'), 'sensitive')
+        self.assertNotIn('checked', saved)
+        self.assertNotIn('value', saved)
+
+
 if __name__ == '__main__':
     unittest.main()

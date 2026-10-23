@@ -191,6 +191,14 @@ def run(args, conf):
         result, command = _agent(service, name, payload, wait if wait is not None else getattr(args, 'wait', 60))
         return emit({'ok': True, 'action': name, 'command_id': command.get('id'), **result})
 
+    if action == 'batch':
+        payload = {'action': args.batch_action}
+        if args.batch_action == 'start':
+            payload.update(site=args.site, domains=[d.strip() for d in args.domains.split(',') if d.strip()], batch_size=args.batch_size)
+        elif getattr(args, 'id', None):
+            payload['id'] = args.id
+        return page('batch', payload)
+
     if action == 'status':
         status = service.get('agent/status')
         active = None
@@ -201,6 +209,8 @@ def run(args, conf):
                 active = result
             except CLIError as exc:
                 active_error = exc.payload
+            # 首次心跳可先于长轮询版本登记；页面命令完成后读取同一时点的连接状态。
+            status = service.get('agent/status')
         return emit({'ok': True, 'service': {**service.display, 'connected': True},
                      'extension': status, 'active': active, 'active_error': active_error})
 

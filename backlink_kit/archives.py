@@ -1,6 +1,6 @@
 """持久待验证存档：复用 handoff 与来源库，不把短期快照当长期资产。"""
 from copy import deepcopy
-import fcntl
+
 import json
 import re
 import uuid
@@ -33,6 +33,10 @@ def clean_frame(frame, site, source):
     result: dict = dict(url=clean_url(frame.get('url', '')), site=site, source_domain=source,
                   step_index=frame.get('step_index', 0), complete=False,
                   has_next=bool(frame.get('has_next')), verification=bool(frame.get('verification')), steps=[])
+    if 'frame_id' in frame:
+        if type(frame['frame_id']) is not int or frame['frame_id'] < 0:
+            raise ValueError('invalid_archive_frame_id')
+        result['frame_id'] = frame['frame_id']
     if type(result['step_index']) is not int or not 0 <= result['step_index'] < len(steps):
         raise ValueError('invalid_archive_step')
     for step in steps:
@@ -49,11 +53,15 @@ def clean_frame(frame, site, source):
             item = {key: deepcopy(field[key]) for key in
                     ('label', 'key', 'inputType', 'widget', 'order', 'required', 'asset_id', 'asset_sha256', 'needs_confirmation') if key in field}
             item['locator'] = {key: locator[key] for key in LOCATOR_KEYS if key in locator}
-            blocked = sensitive({**item, 'name': locator.get('name', '')}) or field.get('skipped')
+            semantics = {**locator, **item,
+                         'name': ' '.join(str(locator.get(k, '')) for k in ('name', 'id', 'label', 'autocomplete')),
+                         'autocomplete': locator.get('autocomplete', '')}
+            blocked = sensitive(semantics) or field.get('skipped')
             if item.get('key') in rules('keywords')['sensitive']:
                 blocked = item['key']
             if item.get('inputType') in ('checkbox', 'radio') and re.search(
-                    r'agree|accept|terms|privacy|consent|条款|同意|授权|subscribe|newsletter|opt.?in', item.get('label', ''), re.I):
+                    r'agree|accept|terms|privacy|consent|条款|同意|授权|subscribe|newsletter|opt.?in',
+                    str(item.get('label', '')) + ' ' + semantics['name'], re.I):
                 blocked = 'sensitive'
             if blocked:
                 item['skipped'] = 'captcha' if blocked in ('captcha', 'verification') else 'sensitive'
@@ -92,12 +100,11 @@ def save(api, data):
     frames = [clean_frame(frame, site, source) for frame in raw]
     if not any(any(step['fields'] for step in frame['steps']) for frame in frames):
         raise ValueError('没有可存档的字段')
-    from .core import read_csv
-    if submitted(api.library.load(source), site, read_csv(api.conf['ledger'])[1]):
-        raise ValueError('已有提交或未知结果，不能重新排队')
-    with (api.store.root / '.archive.lock').open('a') as lock:
-        fcntl.flock(lock, fcntl.LOCK_EX)
-        existing = [row for row in api.store.rows() if row['site'] == site and row['submit_url'] == url]
+    from .library import history_rows
+    with api.library.lock():
+        if submitted(api.library.load(source), site, history_rows(api.conf)):
+            raise ValueError('已有提交或未知结果，不能重新排队')
+        existing = [row for row in api.store.rows() if row['site'] == site and row.get('source_domain') == source]
         record = next((row for row in existing if row['status'] in ACTIVE), None)
         if existing and record is None:
             raise ValueError('已有终态或未知结果，先核实，不重复存档')
@@ -112,6 +119,6 @@ def save(api, data):
                           archive={**details, 'saved_at': stamp(), 'frames': frames},
                           message='仅剩人工验证' if details['only_verification'] else '已存档；复原后请核对剩余项')
             api.store.save(record)
-            steps = [step for frame in frames for step in frame['steps']]
-            api.remember(context, {'steps': steps, 'complete': False})
+    steps = [step for frame in frames for step in frame['steps']]
+    api.remember(context, {'steps': steps, 'complete': False})
     return {'id': ident, 'status': record['status'], 'archive': details}

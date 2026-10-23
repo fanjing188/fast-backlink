@@ -160,6 +160,11 @@ class ExtensionAPI:
         return source['memories'].get(site, {'fields': [], 'labels': {}})
 
     def get(self, endpoint, query):
+        if endpoint == 'batch_status':
+            from .batch import BatchStore
+            return BatchStore(self.conf).status(query.get('id'))
+        if endpoint == 'library_template':
+            return {'csv': 'url,type,fee,note\nhttps://example.com/submit,directory,free,\n'}
         if endpoint == 'library':
             return library.listing(self.conf, query)
         if endpoint == 'health':
@@ -245,11 +250,9 @@ class ExtensionAPI:
             raise ValueError('invalid_snapshot')
         if len(json.dumps(data, ensure_ascii=False)) > 2_000_000:
             raise ValueError('snapshot_too_large')
-        for step in data['steps']:
-            for field in step.get('fields', []):
-                if sensitive(field):
-                    # 敏感字段不落盘，和扩展侧同一条规则。
-                    field.pop('value', None)
+        from .archives import clean_frame
+        clean = clean_frame(data, data.get('site', ''), data.get('source_domain', ''))
+        data = {**data, 'steps': clean['steps']}
         path = self.snapshots.save(data)
         return {'saved': path, 'id': data.get('id')}
 
@@ -259,6 +262,22 @@ class ExtensionAPI:
         return {'written': written}
 
     def post(self, endpoint, data):
+        if endpoint in ('library_import_preview', 'library_import', 'library_export', 'library_bulk'):
+            from . import library_v2 as v2
+            if endpoint.startswith('library_import'):
+                return v2.import_file(self.conf, data, confirm=endpoint == 'library_import')
+            if endpoint == 'library_export':
+                return {'csv': v2.csv_text(v2.export_rows(self.conf, data))}
+            return v2.bulk(self.conf, data)
+        if endpoint.startswith('batch_'):
+            from .batch import BatchStore
+            store = BatchStore(self.conf)
+            actions = {'batch_preview': store.preview, 'batch_start': store.start, 'batch_claim': store.claim,
+                       'batch_control': store.control, 'batch_attempt': store.attempt, 'batch_result': store.result,
+                       'batch_resolve': lambda data: store.result(data, manual=True)}
+            if endpoint not in actions:
+                raise ValueError('invalid_endpoint')
+            return actions[endpoint](data)
         if endpoint == 'library_prepare':
             return library.prepare(self.conf, data)
         if endpoint == 'library':
@@ -268,6 +287,13 @@ class ExtensionAPI:
             return save(self, data)
         if endpoint == 'ai_suggest':
             return self.ai.suggest(data)
+        if endpoint == 'ai_config':
+            return ai.configure(self.conf, data, save=True)
+        if endpoint == 'ai_test':
+            return ai.test_connection(self.conf, data)
+        if endpoint == 'auth_suggest':
+            from .auth_ai import suggest
+            return suggest(self.ai, data)
         if endpoint == 'snapshot':
             return self.save_snapshot(data)
         if endpoint == 'logs':
@@ -322,7 +348,12 @@ class ExtensionAPI:
         if endpoint == 'submission-attempt':
             from .handoff import stamp
             from .sources import source_event
-            with self.store.lock(ident):
+            record = self.store.load(ident)
+            if record.get('batch_id'):
+                from .batch import BatchStore
+                return BatchStore(self.conf).manual_attempt(record['batch_id'], ident)
+            # 只等待本地状态写锁，不重发网页投稿；短暂results写入不能吞掉提交事实。
+            with self.store.lock(ident, timeout=2):
                 r = self.store.load(ident)
                 if r['status'] in ('待核实', '结果未知'):
                     return {'status': r['status']}
@@ -335,6 +366,8 @@ class ExtensionAPI:
             return self.store.transition(ident, endpoint, self.conf['runs_dir'], data.get('reason', ''), extension_data=data, extension_api=self)
         with self.store.lock(ident):
             r = self.store.load(ident)
+            if r.get('batch_id') and endpoint == 'results':
+                return {'status': r['status']}
             if r['status'] not in ('待处理', '待授权', '待人工'):
                 raise ValueError('当前状态不允许扩展写入')
             if endpoint == 'remember':

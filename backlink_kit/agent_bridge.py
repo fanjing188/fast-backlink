@@ -13,7 +13,7 @@ import uuid
 # 扩展能执行的动作；服务端先做白名单，避免本地通道变成任意脚本入口。
 ACTIONS = {
     'status', 'tabs', 'open', 'fill', 'ai', 'restore', 'remember', 'snapshot', 'steps', 'state',
-    'activate', 'done', 'skip',
+    'activate', 'done', 'skip', 'batch',
 }
 MAX_WAIT_SECONDS = 180
 MAX_POLL_SECONDS = 30

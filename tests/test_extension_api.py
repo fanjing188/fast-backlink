@@ -90,6 +90,87 @@ class ApiTests(unittest.TestCase):
         self.assertIn('qa', payload)
         self.assertNotIn(str(self.root), json.dumps(payload))
 
+    def test_ai_configuration_is_private_and_effective_for_fill_and_login_requests(self):
+        from tests.test_ai import FakeModel
+        model = FakeModel(text='{"ok":true}')
+        self.addCleanup(model.close)
+        draft = dict(base_url=model.base_url, model='combined-backend', api_key='synthetic-private-key')
+        code, result = self.call('ai_test', data=draft)
+        self.assertEqual(code, 200, result)
+        self.assertTrue(result['ok'])
+        path = Path(self.conf['settings_dir']) / 'ai-config.json'
+        self.assertFalse(path.exists(), '测试连通不能保存草稿')
+        self.assertNotIn('synthetic-private-key', json.dumps(result))
+        code, result = self.call('ai_config', data={**draft, 'enabled': True})
+        self.assertEqual(code, 200, result)
+        self.assertNotIn('synthetic-private-key', json.dumps(result))
+        self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+        code, status = self.call('ai')
+        self.assertEqual(code, 200, status)
+        self.assertTrue(status['configured'])
+        self.assertTrue(status['has_key'])
+        self.assertNotIn('api_key', status)
+        model.text = '{"suggestions":[{"i":0,"key":"url","conf":0.99}]}'
+        code, result = self.call('ai_suggest', data=dict(site='probekits', source_domain='combined.example',
+            fields=[dict(index=0, label='Your Website', inputType='url')]))
+        self.assertEqual(code, 200, result)
+        self.assertEqual(result['suggestions'][0]['key'], 'url')
+        model.text = '{"i":0}'
+        code, result = self.call('auth_suggest', data=dict(kind='login', candidates=[
+            dict(id='login-candidate', action='google', label='Continue with Google')]))
+        self.assertEqual(code, 200, result)
+        self.assertEqual(result['id'], 'login-candidate')
+        self.assertIn('Select a login navigation button', model.requests[-1]['messages'][0]['content'])
+        self.assertEqual(model.headers[-1]['Authorization'], 'Bearer synthetic-private-key')
+        self.assertNotIn('synthetic-private-key', json.dumps(result))
+
+    def test_library_import_preview_accepts_large_body_without_mutation(self):
+        before = list(Path(self.conf['sources_dir']).glob('*.json'))
+        code, result = self.call('library_import_preview', data=dict(format='txt',
+            text=' ' * 300000 + 'https://combined.example/submit'))
+        self.assertEqual(code, 200, result)
+        self.assertEqual(result['added'], 1)
+        self.assertEqual(before, list(Path(self.conf['sources_dir']).glob('*.json')))
+        self.assertEqual(self.call('library_template')[0], 200)
+
+    def test_batch_manual_attempt_survives_large_archive_and_abandon_over_http(self):
+        from backlink_kit import sources
+        store = sources.SourceStore(self.conf['sources_dir'])
+        store.update('combined.example', 'screen', dict(status='可投',
+            submit_url='https://combined.example/submit', scenario='directory', cost='free',
+            dr='25', dr_date=str(c.today()), fit_sites='probekits', backlink_required=False),
+            sources.evidence('synthetic:combined', by='manual'))
+        selection = dict(site='probekits', domains=['combined.example'])
+        code, batch = self.call('batch_start', data=selection)
+        self.assertEqual(code, 200, batch)
+        code, jobs = self.call('batch_claim', data={'owner': 'a' * 32})
+        self.assertEqual(code, 200, jobs)
+        self.assertEqual(len(jobs), 1)
+        job = jobs[0]
+        frame = dict(frame_id=0, url='https://combined.example/step2', steps=[dict(fields=[
+            dict(label='Description', value='x' * 300000),
+            dict(label='Confirm', inputType='checkbox', value=True, checked=True,
+                 locator=dict(name='agree_terms'))])])
+        code, result = self.call('batch_result', data=dict(job, result='manual', frames=[frame]))
+        self.assertEqual(code, 200, result)
+        self.assertTrue(result['archive_saved'])
+        saved = h.Store(self.conf['handoff_dir']).load(job['id'])
+        self.assertEqual(saved['submit_url'], frame['url'])
+        clean = saved['archive']['frames'][0]['steps'][0]['fields'][-1]
+        self.assertNotIn('value', clean)
+        self.assertNotIn('checked', clean)
+        code, result = self.call('submission-attempt', data={'id': job['id']})
+        self.assertEqual((code, result['status']), (200, '结果未知'))
+        code, result = self.call('batch_resolve', data=dict(batch_id=batch['id'], id=job['id'], result='abandoned'))
+        self.assertEqual(code, 200, result)
+        code, preview = self.call('batch_preview', data=selection)
+        self.assertEqual(code, 200, preview)
+        self.assertEqual(preview['eligible'], [])
+        code, status = self.call('batch_status', 'id=' + batch['id'])
+        self.assertEqual(code, 200, status)
+        self.assertTrue(status['jobs'][0]['attempted_at'])
+        self.assertEqual(status['jobs'][0]['state'], 'abandoned')
+
     def test_unconfirmed_personal_facts_are_not_factory_answers(self):
         from backlink_kit import ai, kits
         status, payload = self.call('kit', 'site=probekits')

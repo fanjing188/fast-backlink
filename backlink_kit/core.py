@@ -1,6 +1,8 @@
 """纯数据逻辑和受控文件/HTTP 边界；不执行浏览器或提交。"""
 from __future__ import annotations
 import csv
+from contextlib import contextmanager
+import fcntl
 import hashlib
 import html
 from html.parser import HTMLParser
@@ -69,6 +71,21 @@ def read_csv(path):
     with Path(path).open(encoding='utf-8-sig', newline='') as f:
         r = csv.DictReader(f)
         return list(r.fieldnames or []), list(r)
+
+
+@contextmanager
+def config_lock(path):
+    path = Path(path).resolve()
+    if protected(path):
+        raise ValueError('真实数据只读；禁止写入')
+    lock_path = path.with_name('.' + path.name + '.lock')
+    fd = os.open(lock_path, os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+    with os.fdopen(fd, 'a') as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise ValueError('配置正在更新；本次未开始，请在空闲后重试') from None
+        yield
 
 
 def atomic_json(path, obj):
