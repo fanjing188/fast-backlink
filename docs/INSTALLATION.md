@@ -22,7 +22,7 @@ PYTHON=/path/to/python3.11 sh scripts/install.sh
 | 命令 | `~/.local/bin/backlink-kit` |
 | 配置 | `~/.local/share/backlink-kit/config.json` |
 | 产品及业务记录 | `~/.local/share/backlink-kit/data/` |
-| 浏览器扩展 | `~/.local/share/backlink-kit/current/extension` |
+| 浏览器扩展 | `~/.local/share/backlink-kit/extension` |
 
 自定义安装使用 `sh scripts/install.sh --prefix /path/to/app --bin-dir /path/to/bin`。以 `backlink-kit doctor` 输出的实际路径为准；安装器拒绝接管其他程序目录。
 
@@ -41,7 +41,7 @@ PYTHON=/path/to/python3.11 sh scripts/install.sh
 ```sh
 backlink-kit update
 # 固定到1.0正式标签：
-backlink-kit update --repo https://github.com/fanjing188/fast-backlink.git --ref v1.0.0
+backlink-kit update --repo https://github.com/fanjing188/fast-backlink.git --ref v1.0.1
 # 回退程序：
 backlink-kit rollback
 ```
@@ -49,6 +49,8 @@ backlink-kit rollback
 更新从已登记 Git 上游或本地源码读取，也可显式指定 `--repo` 或 `--source /path/to/source`。新程序检查通过后原子切换，失败时保留旧版。更新不覆盖配置和业务资料；回滚只回退代码。数据迁移应先备份并运行迁移脚本的 `--dry-run`，与程序更新分开核实。
 
 **两种操作后都要手动重新加载浏览器扩展，再启动服务。** 安装脚本不会代替浏览器的安全确认。
+
+1.0.0 使用的 `current/extension` 会被浏览器固定到旧发布目录。从该版本升级（包括回退到它后再更新）须使用新版下载包中的 `sh scripts/update.sh --prefix 你的安装目录`，让新版安装器同步固定目录。随后停用旧扩展，从 `doctor` 显示的目录加载一次；此后更新和回滚只需重新加载。个人资料仍在本机服务中，旧扩展的浏览器设置和快照可保留。
 
 ## 卸载与排错
 

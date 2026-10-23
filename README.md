@@ -28,7 +28,7 @@ backlink-kit start
 ### 2. 连接浏览器
 
 1. 打开 `edge://extensions` 或 `chrome://extensions`，开启开发者模式。
-2. 选择“加载解压缩的扩展”，加载 `~/.local/share/backlink-kit/current/extension`。自定义安装路径看 `doctor` 输出。
+2. 选择“加载解压缩的扩展”，加载 `~/.local/share/backlink-kit/extension`。自定义安装路径看 `doctor` 输出。
 3. 打开扩展选项，保存 `start` 输出的完整本机连接地址，再打开侧栏。
 
 连接地址含访问令牌，只保存在自己的扩展中，不要公开分享。
@@ -66,6 +66,8 @@ backlink-kit kits new myproduct
 ## 更新与回滚
 
 先停止服务，再执行 `backlink-kit update`；回退使用 `backlink-kit rollback`。两种操作后都要在浏览器扩展管理页手动重新加载扩展，并重新启动服务。更新保留个人配置、产品资料和业务记录。
+
+从 1.0.0 升级（包括回退到它后再更新）时，用新版下载包中的 `sh scripts/update.sh --prefix 你的安装目录` 完成更新。随后停用旧扩展，从 `doctor` 给出的固定目录加载一次；以后在新扩展上点击“重新加载”即可。
 
 ## 文档
 

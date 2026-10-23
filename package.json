@@ -1,6 +1,6 @@
 {
   "name": "backlink-kit",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Local-first backlink form assistant: reusable product assets, verification archives and a browser/agent CLI.",
   "scripts": {
     "test": "node --test extension/tests/*.test.cjs",

@@ -36,6 +36,12 @@ class InstallationTests(unittest.TestCase):
         self.assertFalse(conf['ai']['enabled'])
         self.assertNotRegex(json.dumps(conf), r'/(Users|home)/[A-Za-z0-9._-]+/')
         self.assertTrue((self.prefix / 'current/extension/manifest.json').is_file())
+        extension = self.prefix / 'extension'
+        self.assertTrue((extension / 'manifest.json').is_file())
+        self.assertFalse(extension.is_symlink(), '浏览器入口不能经过会固定到旧发布目录的软链')
+        doctor = subprocess.run([str(self.bin / 'backlink-kit'), 'doctor'], env=self.env, text=True, capture_output=True)
+        self.assertEqual(doctor.returncode, 0, doctor.stderr)
+        self.assertEqual(json.loads(doctor.stdout)['extension'], str(extension))
         self.assertFalse((self.prefix / 'current/config.json').exists())
         self.assertFalse((self.prefix / 'current/kits/probekits.json').exists())
         help_result = subprocess.run([str(self.bin / 'backlink-kit'), '--help'], env=self.env, text=True, capture_output=True)
@@ -71,6 +77,8 @@ class InstallationTests(unittest.TestCase):
     def test_update_preserves_assets_and_can_roll_back(self):
         self.assertEqual(self.script('install').returncode, 0)
         previous = (self.prefix / 'current').resolve()
+        browser_path = (self.prefix / 'extension').resolve()
+        background = (browser_path / 'background.js').read_bytes()
         config = (self.prefix / 'config.json').read_bytes()
         asset = self.prefix / 'data/saved-asset.json'
         asset.write_text('{"human":"keep me"}')
@@ -78,14 +86,75 @@ class InstallationTests(unittest.TestCase):
         shutil.copytree(previous, source)
         with (source / 'bk.py').open('a') as stream:
             stream.write('\n# next validated release\n')
+        with (source / 'extension/background.js').open('a') as stream:
+            stream.write('\n// 隔离测试的新扩展版本\n')
         result = self.script('update', '--source', str(source))
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertNotEqual((self.prefix / 'current').resolve(), previous)
+        self.assertEqual((self.prefix / 'extension').resolve(), browser_path)
+        self.assertEqual((browser_path / 'background.js').read_bytes(), (source / 'extension/background.js').read_bytes())
         self.assertEqual((self.prefix / 'config.json').read_bytes(), config)
         self.assertEqual(asset.read_text(), '{"human":"keep me"}')
         result = subprocess.run([str(self.bin / 'backlink-kit'), 'rollback'], env=self.env, text=True, capture_output=True)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual((self.prefix / 'current').resolve(), previous)
+        self.assertEqual((browser_path / 'background.js').read_bytes(), background)
+
+    def test_legacy_install_gets_stable_extension_on_update(self):
+        self.assertEqual(self.script('install').returncode, 0)
+        shutil.rmtree(self.prefix / 'extension')
+        result = self.script('update', '--source', str(ROOT))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual((self.prefix / 'extension/background.js').read_bytes(), (ROOT / 'extension/background.js').read_bytes())
+
+    def test_modified_or_symlinked_browser_entry_is_not_overwritten(self):
+        self.assertEqual(self.script('install').returncode, 0)
+        current = (self.prefix / 'current').resolve()
+        extension = self.prefix / 'extension'
+        target = extension / 'background.js'
+        original = target.read_bytes()
+        target.write_text('// 用户自己的修改\n')
+        result = self.script('update', '--source', str(ROOT))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(target.read_text(), '// 用户自己的修改\n')
+        self.assertEqual((self.prefix / 'current').resolve(), current)
+        target.write_bytes(original)
+        outside = self.home / 'outside extension'
+        extension.rename(outside)
+        extension.symlink_to(outside, target_is_directory=True)
+        result = self.script('update', '--source', str(ROOT))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual((outside / 'background.js').read_bytes(), original)
+        self.assertEqual((self.prefix / 'current').resolve(), current)
+
+    def test_failed_activation_restores_both_code_and_browser_entry(self):
+        self.assertEqual(self.script('install').returncode, 0)
+        previous = (self.prefix / 'current').resolve()
+        background = (self.prefix / 'extension/background.js').read_bytes()
+        source = self.home / 'next source'
+        shutil.copytree(previous, source)
+        with (source / 'extension/background.js').open('a') as stream:
+            stream.write('\n// 新候选\n')
+        probe = '''
+from pathlib import Path
+from unittest.mock import patch
+import os, sys, manage_install as m
+prefix, source = map(Path, sys.argv[1:])
+release = m.stage(prefix, source)
+replace = os.replace
+def fail_activation(src, dst):
+    if Path(dst) == prefix / 'current': raise OSError('synthetic activation failure')
+    return replace(src, dst)
+with patch.object(m.os, 'replace', side_effect=fail_activation):
+    try: m.switch(prefix, release)
+    except OSError: pass
+    else: raise AssertionError('activation should fail')
+'''
+        result = subprocess.run([sys.executable, '-c', probe, str(self.prefix), str(source)],
+                                env={**self.env, 'PYTHONPATH': str(ROOT / 'tools')}, text=True, capture_output=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual((self.prefix / 'current').resolve(), previous)
+        self.assertEqual((self.prefix / 'extension/background.js').read_bytes(), background)
 
     def test_symlinked_release_parent_blocks_all_management_writes(self):
         self.assertEqual(self.script('install').returncode, 0)
@@ -147,6 +216,7 @@ class InstallationTests(unittest.TestCase):
         self.assertFalse((self.bin / 'backlink-kit').exists())
         self.assertFalse((self.prefix / 'current').exists())
         self.assertFalse((self.prefix / 'releases').exists())
+        self.assertFalse((self.prefix / 'extension').exists())
         self.assertEqual((self.prefix / 'config.json').read_bytes(), conf)
         self.assertEqual(asset.read_text(), 'Preserve this asset')
         self.assertEqual(self.script('install').returncode, 0, '保留的数据必须支持重新安装')

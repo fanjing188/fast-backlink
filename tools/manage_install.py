@@ -37,7 +37,7 @@ def write_json(path, value):
 def metadata(prefix):
     if prefix.is_symlink():
         raise ValueError('Installation prefix must not be a symlink')
-    for name in ('.installation.json', '.install.lock', '.service.lock', 'releases'):
+    for name in ('.installation.json', '.install.lock', '.service.lock', 'releases', 'extension'):
         checked_path(prefix, prefix / name)
     value = json.loads((prefix / '.installation.json').read_text())
     if value.get('app') != APP or value.get('prefix') != str(prefix.resolve()):
@@ -125,10 +125,40 @@ def stage(prefix, source):
     return release
 
 
+def verify_extension(prefix, release):
+    extension = checked_path(prefix, prefix / 'extension')
+    hashes = json.loads((release / 'FILES.json').read_text())
+    expected = {name.removeprefix('extension/'): digest for name, digest in hashes.items() if name.startswith('extension/')}
+    actual = {str(path.relative_to(extension)): hashlib.sha256(checked_path(extension, path).read_bytes()).hexdigest()
+              for path in extension.rglob('*') if path.is_file() or path.is_symlink()}
+    if actual != expected:
+        raise ValueError('Browser extension files are missing or modified; the installation is unchanged')
+
+
 def switch(prefix, release):
+    # 浏览器会固定软链的真实路径；独立目录确保重载后读取当前版本。
+    extension = checked_path(prefix, prefix / 'extension')
+    if extension.exists():
+        verify_extension(prefix, (prefix / 'current').resolve(strict=True))
+    temp = Path(tempfile.mkdtemp(prefix='.extension-', dir=prefix))
     link = prefix / ('.current-' + uuid.uuid4().hex)
-    link.symlink_to(release.relative_to(prefix), target_is_directory=True)
-    os.replace(link, prefix / 'current')
+    try:
+        shutil.copytree(release / 'extension', temp / 'new')
+        link.symlink_to(release.relative_to(prefix), target_is_directory=True)
+        if extension.exists():
+            extension.rename(temp / 'old')
+        try:
+            (temp / 'new').rename(extension)
+            os.replace(link, prefix / 'current')
+        except OSError:
+            if extension.exists():
+                shutil.rmtree(extension)
+            if (temp / 'old').exists():
+                (temp / 'old').rename(extension)
+            raise
+    finally:
+        link.unlink(missing_ok=True)
+        shutil.rmtree(temp)
 
 
 def launcher_text(prefix, ident):
@@ -174,7 +204,7 @@ def install(args):
         meta.update(provenance)
         write_json(prefix / '.installation.json', meta)
     print('Installed: ' + str(executable))
-    print('Extension directory: ' + str(prefix / 'current/extension'))
+    print('Extension directory: ' + str(prefix / 'extension'))
     print('Next: ' + shlex.quote(str(executable)) + ' doctor; then start')
 
 
@@ -194,7 +224,7 @@ def activate_update(prefix, source, meta):
     release = stage(prefix, source)
     if release != current:
         meta['previous'] = current.name
-        switch(prefix, release)
+    switch(prefix, release)
     write_json(prefix / '.installation.json', meta)
     print('Updated. Reload the unpacked browser extension, then start the service.')
 
@@ -249,9 +279,10 @@ def doctor(args):
     prefix = args.prefix.expanduser().absolute()
     meta = metadata(prefix)
     verify_release(prefix, (prefix / 'current').resolve(strict=True))
+    verify_extension(prefix, (prefix / 'current').resolve(strict=True))
     print(json.dumps({'installed': True, 'code_verified': True, 'python': sys.version.split()[0], 'prefix': str(prefix),
                       'config': str(prefix / 'config.json'), 'data': str(prefix / 'data'),
-                      'extension': str(prefix / 'current/extension'), 'source': meta['source']}, indent=2))
+                      'extension': str(prefix / 'extension'), 'source': meta['source']}, indent=2))
 
 
 def uninstall(args):
@@ -267,6 +298,9 @@ def uninstall(args):
         releases = prefix / 'releases'
         if releases.is_symlink() or ((prefix / 'current').exists() and not (prefix / 'current').is_symlink()):
             raise ValueError('Managed paths were replaced; refusing removal')
+        if (prefix / 'extension').exists():
+            verify_extension(prefix, (prefix / 'current').resolve(strict=True))
+            shutil.rmtree(prefix / 'extension')
         executable.unlink(missing_ok=True)
         (prefix / 'current').unlink(missing_ok=True)
         if releases.exists():

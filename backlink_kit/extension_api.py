@@ -18,7 +18,7 @@ from .core import rules, sensitive, semantic_key, domain
 from .fbstores import LearningStore, LogSink, SettingsStore, SnapshotStore
 from .sources import SourceStore, apply_event, evidence, submitted
 
-VERSION = '1.0.0'
+VERSION = '1.0.1'
 # 只允许扩展下载这几类文件；视频走 CDP 暂存路径，不经过消息体。
 SERVED_MIMES = ('image/png', 'image/jpeg', 'image/webp', 'image/gif', 'image/svg+xml')
 STAGE_TTL_SECONDS = 3600

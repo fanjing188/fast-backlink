@@ -18,7 +18,7 @@ before(async () => {
     {env:{...process.env,HOME:path.join(env.root,'empty-home'),PYTHON:process.env.PYTHON||'python3'}});
   // 用户可选择自己的数据目录；这里只连启动器创建的合成资料，绝不连真实config。
   await copyFile(env.configPath,path.join(prefix,'config.json'));
-  extension = path.join(prefix,'current/extension');
+  extension = path.join(prefix,'extension');
   await writeFile(path.join(extension,'installation-smoke.txt'),'installed-extension-only');
   const oldExited = once(env.service,'exit');env.service.kill('SIGTERM');await oldExited;
   service=spawn(path.join(bin,'backlink-kit'),['start','--port',String(API_PORT)],{env:process.env,stdio:['ignore','pipe','pipe']});
