@@ -183,10 +183,14 @@ class InstallationTests(unittest.TestCase):
     def _service_holds_runtime(self, actions):
         self.assertEqual(self.script('install').returncode, 0)
         command = str(self.bin / 'backlink-kit')
-        process = subprocess.Popen([command, *actions, '--port', '0'], env=self.env, stdout=subprocess.PIPE,
+        probe = self.home / 'startup-probe'
+        probe.mkdir()
+        (probe / 'sitecustomize.py').write_text('import faulthandler\nfaulthandler.dump_traceback_later(2, repeat=True)\n')
+        service_env = {**self.env, 'PYTHONPATH': str(probe) + os.pathsep + self.env.get('PYTHONPATH', '')}
+        process = subprocess.Popen([command, *actions, '--port', '0'], env=service_env, stdout=subprocess.PIPE,
                                    stderr=subprocess.PIPE, text=True)
+        info = self.prefix / 'data/handoff/server.json'
         try:
-            info = self.prefix / 'data/handoff/server.json'
             for _ in range(100):
                 if info.exists() or process.poll() is not None:
                     break
@@ -202,8 +206,12 @@ class InstallationTests(unittest.TestCase):
             self.assertNotEqual(result.returncode, 0)
             self.assertIn('busy', result.stderr)
         finally:
+            missing_registration = not info.is_file()
             process.terminate()
-            process.communicate(timeout=10)
+            _, diagnostics = process.communicate(timeout=10)
+            if missing_registration:
+                # 只输出隔离测试进程的栈，不回显stdout中的本机令牌地址。
+                print('[startup-timeout] ' + diagnostics, file=sys.stderr)
         self.assertFalse(info.exists(), '退出后清理服务登记，不能留下伪在线状态')
 
     def test_failed_update_keeps_current_release_and_user_data(self):
