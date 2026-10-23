@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 import re
 import secrets
+from socketserver import TCPServer
 from urllib.parse import urlsplit, urlunsplit, parse_qs
 import uuid
 from .core import atomic_json, day, today, rules, fillplan, snapshot_fields, sensitive, semantic_key, output_csv
@@ -550,7 +551,16 @@ def make_server(conf,port=0,token_file=None):
                 self.send_response(303);self.send_header('Location',route);self.end_headers()
             except (ValueError,KeyError,OSError) as exc:
                 self.reply(409,html.escape(str(exc)))
-    server=ThreadingHTTPServer(('127.0.0.1',port),Handler)
+    class LoopbackServer(ThreadingHTTPServer):
+        bridge: AgentBridge
+
+        def server_bind(self):
+            # 固定回环地址不需要反向DNS，避免离线/慢解析拖住本机服务启动。
+            TCPServer.server_bind(self)
+            self.server_name='127.0.0.1'
+            self.server_port=self.server_address[1]
+
+    server=LoopbackServer(('127.0.0.1',port),Handler)
     # 测试和诊断可以直接看命令通道状态，不必再开第二个端口。
     server.bridge=bridge
     address=f'http://127.0.0.1:{server.server_port}{route}'

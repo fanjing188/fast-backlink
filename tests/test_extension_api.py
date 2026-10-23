@@ -4,6 +4,7 @@ from pathlib import Path
 import tempfile
 import threading
 import unittest
+from unittest.mock import patch
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -56,6 +57,20 @@ class ApiTests(unittest.TestCase):
                 return response.status, (raw if 'image' in mime else json.loads(raw))
         except HTTPError as exc:
             return exc.code, json.loads(exc.read())
+
+    def test_loopback_startup_does_not_require_reverse_dns(self):
+        with patch('socket.getfqdn', side_effect=AssertionError('回环服务启动不能等待外部名称解析')):
+            server, base = h.make_server(self.conf, 0, self.token_file)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        try:
+            self.assertEqual(server.server_name, '127.0.0.1')
+            self.assertGreater(server.server_port, 0)
+            with urlopen(Request(base + 'api/health', headers={'X-Fast-Backlink': '1'}), timeout=5) as response:
+                self.assertEqual(response.status, 200)
+                self.assertEqual(json.load(response)['name'], 'fast-backlink')
+        finally:
+            server.shutdown()
+            server.server_close()
 
     def test_health_rules_and_kit_payload_hide_paths(self):
         status, health = self.call('health')
